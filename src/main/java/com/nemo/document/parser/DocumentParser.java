@@ -116,20 +116,23 @@ public class DocumentParser {
             Pattern pattern = Pattern.compile(dateRegEx, Pattern.CASE_INSENSITIVE);
             Matcher matcher = pattern.matcher(firstParagraph.getParagraphHeader().getText());
             if(matcher.find()){
-                String dateSubString = firstParagraph.getParagraphHeader().getText().substring(matcher.start(), matcher.end());
-
+                result.setDocumentDate(parseDate(matcher));
             }
             else{
                 matcher = pattern.matcher(firstParagraph.getParagraphBody().getText());
                 if(matcher.find()) {
-                    String day = matcher.group("day");
-                    String month = matcher.group("month");
-                    String year = matcher.group("year");
-                    result.setDocumentDate(LocalDate.of(Integer.parseInt(year), getMonth(month), Integer.parseInt(day)));
+                    result.setDocumentDate(parseDate(matcher));
                 }
             }
         }
         return result;
+    }
+
+    private static LocalDate parseDate(Matcher matcher){
+        String day = matcher.group("day");
+        String month = matcher.group("month");
+        String year = matcher.group("year");
+        return LocalDate.of(Integer.parseInt(year), getMonth(month), Integer.parseInt(day));
     }
 
     private static int getMonth(String monthString){
