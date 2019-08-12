@@ -28,8 +28,6 @@ public class App
             try {
                 String filePath = line.getOptionValue("i");
                 DocumentStructure documentStructure = DocumentParser.parse(filePath);
-//                Gson gson = new GsonBuilder().setPrettyPrinting().create();
-//                String json = gson.toJson(documentStructure);
                 ObjectMapper mapper = new ObjectMapper();
                 DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
                 mapper.setDateFormat(df);
