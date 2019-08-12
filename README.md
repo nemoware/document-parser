@@ -24,3 +24,8 @@ Body:
 }
 
 GET к /document-parser?filePath=<относительный путь от корневой папки с документами к файлу>
+
+Для запуска консольной версии надо распаковать document-parser-1.0.1-distribution.zip
+и из распакованной директории запустить 
+под Windows: java -cp classes;lib/* com.nemo.document.parser.App -i <путь к файлу>
+под Linux: java -cp classes:lib/* com.nemo.document.parser.App -i <путь к файлу>
