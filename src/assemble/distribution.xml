@@ -1,0 +1,36 @@
+<assembly>
+    <id>distribution</id>
+
+    <!-- specify the output formats -->
+    <formats>
+        <format>zip</format>
+    </formats>
+
+    <!-- include all runtime libraries in the /lib folder of the output file -->
+    <dependencySets>
+        <dependencySet>
+            <outputDirectory>/lib</outputDirectory>
+            <scope>runtime</scope>
+        </dependencySet>
+    </dependencySets>
+
+    <fileSets>
+        <!-- include all *.jar files in the target directory -->
+        <fileSet>
+            <directory>target</directory>
+            <outputDirectory></outputDirectory>
+            <includes>
+                <include>classes/**</include>
+            </includes>
+        </fileSet>
+
+        <!-- include all files in the /conf directory -->
+        <fileSet>
+            <outputDirectory></outputDirectory>
+            <includes>
+                <include>conf/**</include>
+            </includes>
+        </fileSet>
+    </fileSets>
+
+</assembly>

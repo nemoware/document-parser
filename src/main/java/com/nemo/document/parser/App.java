@@ -1,10 +1,12 @@
 package com.nemo.document.parser;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.cli.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 
 
 /**
@@ -26,12 +28,16 @@ public class App
             try {
                 String filePath = line.getOptionValue("i");
                 DocumentStructure documentStructure = DocumentParser.parse(filePath);
-                Gson gson = new GsonBuilder().setPrettyPrinting().create();
-                String json = gson.toJson(documentStructure);
+//                Gson gson = new GsonBuilder().setPrettyPrinting().create();
+//                String json = gson.toJson(documentStructure);
+                ObjectMapper mapper = new ObjectMapper();
+                DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+                mapper.setDateFormat(df);
+                String json = mapper.writeValueAsString(documentStructure);
                 System.out.println(json);
             }
             catch (Throwable th){
-
+                logger.error("Error: ", th);
             }
         }
         catch( ParseException exp ) {

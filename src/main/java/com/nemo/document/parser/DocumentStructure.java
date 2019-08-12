@@ -1,10 +1,15 @@
 package com.nemo.document.parser;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateSerializer;
+
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
 public class DocumentStructure {
+    @JsonSerialize(using = LocalDateSerializer.class)
     private LocalDate documentDate;
 
     private List<Paragraph> paragraphs = new ArrayList<>();
