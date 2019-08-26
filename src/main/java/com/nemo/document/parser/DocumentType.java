@@ -1,6 +1,12 @@
 package com.nemo.document.parser;
 
 public enum DocumentType {
-    DOC,
-    DOCX,
+    UNKNOWN,
+    CONTRACT,
+    CHARTER,
+    PROTOCOL,
+    REGULATION,
+    CHARITY_POLICY,
+    ORDER,
+    WORK_PLAN,
 }

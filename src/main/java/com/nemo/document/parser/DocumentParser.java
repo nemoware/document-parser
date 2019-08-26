@@ -1,5 +1,6 @@
 package com.nemo.document.parser;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.model.StyleDescription;
 import org.apache.poi.hwpf.usermodel.CharacterRun;
@@ -23,17 +24,26 @@ public class DocumentParser {
     private static     String[] shortMonths = {
             "янв", "фев", "мар", "апр", "май", "июн",
             "июл", "авг", "сен", "окт", "ноя", "дек"};
+    private static Map<String, DocumentType> keyToDocType = Map.ofEntries(
+            new AbstractMap.SimpleEntry<>("договор", DocumentType.CONTRACT),
+            new AbstractMap.SimpleEntry<>("устав", DocumentType.CHARTER),
+            new AbstractMap.SimpleEntry<>("протокол", DocumentType.PROTOCOL),
+            new AbstractMap.SimpleEntry<>("положени", DocumentType.REGULATION),
+            new AbstractMap.SimpleEntry<>("благотворител", DocumentType.CHARITY_POLICY),
+            new AbstractMap.SimpleEntry<>("приказ", DocumentType.ORDER),
+            new AbstractMap.SimpleEntry<>("план работ", DocumentType.WORK_PLAN)
+    );
 
     public static DocumentStructure parse(String filePath) throws IOException {
         String extension = filePath.substring(filePath.lastIndexOf(".") + 1).toUpperCase();
-        return parse(new FileInputStream(filePath), DocumentType.valueOf(extension));
+        return parse(new FileInputStream(filePath), DocumentFileType.valueOf(extension));
     }
 
-    public static DocumentStructure parse(InputStream inputStream, DocumentType documentType) throws IOException {
+    public static DocumentStructure parse(InputStream inputStream, DocumentFileType documentFileType) throws IOException {
         DocumentStructure result = new DocumentStructure();
         com.nemo.document.parser.Paragraph currentParagraph = null;
         boolean isPrevHeader = false;
-        switch(documentType){
+        switch(documentFileType){
             case DOC:
                 HWPFDocument doc = new HWPFDocument(inputStream);
                 Range range = doc.getRange();
@@ -83,31 +93,30 @@ public class DocumentParser {
                     }
                 }
                 for(XWPFParagraph paragraph : paragraphs){
-                    if(isHeader(paragraph, excludeParagraphs)){
-                        if(isPrevHeader){
-                            currentParagraph.getParagraphHeader().addText(paragraph.getText());
+                    if(!paragraph.getText().trim().isEmpty()) {
+                        if (isHeader(paragraph, excludeParagraphs)) {
+                            if (isPrevHeader) {
+                                currentParagraph.getParagraphHeader().addText(paragraph.getText());
+                            } else {
+                                currentParagraph = new com.nemo.document.parser.Paragraph();
+                                result.addParagraph(currentParagraph);
+                                currentParagraph.setParagraphHeader(new TextSegment(globalOffset, paragraph.getText()));
+                            }
+                            isPrevHeader = true;
+                        } else {
+                            if (currentParagraph == null) {
+                                currentParagraph = new com.nemo.document.parser.Paragraph();
+                                result.addParagraph(currentParagraph);
+                            }
+                            if (currentParagraph.getParagraphBody() == null) {
+                                currentParagraph.setParagraphBody(new TextSegment(globalOffset, paragraph.getText()));
+                            } else {
+                                currentParagraph.getParagraphBody().addText(paragraph.getText());
+                            }
+                            isPrevHeader = false;
                         }
-                        else {
-                            currentParagraph = new com.nemo.document.parser.Paragraph();
-                            result.addParagraph(currentParagraph);
-                            currentParagraph.setParagraphHeader(new TextSegment(globalOffset, paragraph.getText()));
-                        }
-                        isPrevHeader = true;
+                        globalOffset += paragraph.getText().length();
                     }
-                    else{
-                        if(currentParagraph == null){
-                            currentParagraph = new com.nemo.document.parser.Paragraph();
-                            result.addParagraph(currentParagraph);
-                        }
-                        if(currentParagraph.getParagraphBody() == null) {
-                            currentParagraph.setParagraphBody(new TextSegment(globalOffset, paragraph.getText()));
-                        }
-                        else{
-                            currentParagraph.getParagraphBody().addText(paragraph.getText());
-                        }
-                        isPrevHeader = false;
-                    }
-                    globalOffset += paragraph.getText().length();
                 }
                 break;
         }
@@ -122,6 +131,14 @@ public class DocumentParser {
                 matcher = pattern.matcher(firstParagraph.getParagraphBody().getText());
                 if(matcher.find()) {
                     result.setDocumentDate(parseDate(matcher));
+                }
+            }
+            int firstOccurrence = firstParagraph.getParagraphHeader().getLength();
+            for(AbstractMap.Entry<String, DocumentType> entry : keyToDocType.entrySet()){
+                int idx = StringUtils.indexOfIgnoreCase(firstParagraph.getParagraphHeader().getText(), entry.getKey());
+                if(idx >= 0 && firstOccurrence > idx){
+                    result.setDocumentType(entry.getValue());
+                    firstOccurrence = idx;
                 }
             }
         }

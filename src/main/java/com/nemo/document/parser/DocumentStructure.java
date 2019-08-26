@@ -11,6 +11,7 @@ import java.util.List;
 public class DocumentStructure {
     @JsonSerialize(using = LocalDateSerializer.class)
     private LocalDate documentDate;
+    private DocumentType documentType = DocumentType.UNKNOWN;
 
     private List<Paragraph> paragraphs = new ArrayList<>();
 
@@ -29,5 +30,13 @@ public class DocumentStructure {
 
     public void setDocumentDate(LocalDate documentDate) {
         this.documentDate = documentDate;
+    }
+
+    public DocumentType getDocumentType() {
+        return documentType;
+    }
+
+    public void setDocumentType(DocumentType documentType) {
+        this.documentType = documentType;
     }
 }

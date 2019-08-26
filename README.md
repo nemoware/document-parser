@@ -1,7 +1,7 @@
 # document-parser
 
 для сборки и запуска надо:
-1. Java 12+
+1. Java 11+
 2. Maven 3+
 
 Собрать командой: mvn clean install
@@ -20,7 +20,7 @@ Content-type: application/json
 Body:
 {
   "base64Content": "..."
-  "documentType": "<DOCX или DOC>"
+  "documentFileType": "<DOCX или DOC>"
 }
 
 GET к /document-parser?filePath=<относительный путь от корневой папки с документами к файлу>

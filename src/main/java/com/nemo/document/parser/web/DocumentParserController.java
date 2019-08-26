@@ -38,7 +38,7 @@ public class DocumentParserController {
     public DocumentStructure getDocumentStructureByContent(@RequestBody DocumentParserRequest request){
         byte[] decodedBytes = Base64.getDecoder().decode(request.getBase64Content());
         try {
-            return DocumentParser.parse(new ByteArrayInputStream(decodedBytes), request.getDocumentType());
+            return DocumentParser.parse(new ByteArrayInputStream(decodedBytes), request.getDocumentFileType());
         }
         catch(IOException ex){
             throw new RuntimeException(ex);
