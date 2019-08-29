@@ -22,6 +22,9 @@ public class TextSegment {
     }
 
     public void addText(String text){
+        if(this.text.length() > 0){
+            this.text.append(System.lineSeparator());
+        }
         this.text.append(text);
     }
 }
