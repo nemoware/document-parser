@@ -19,3 +19,5 @@ deploy:
   skip_cleanup: true
   on:
     repo: nemoware/document-parser
+    tags: true
+    branch: master
