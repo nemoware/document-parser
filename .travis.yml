@@ -7,3 +7,13 @@ jobs:
   - stage: 🚫 jdk.java.net - Archived OpenJDK General-Availability Releases
     env: JDK=11 🚫
     script: source ./install-jdk.sh --feature 11
+deploy:
+  provider: releases
+  api_key:
+    secure: a7eecfe916b1bb07a7845034e2fc65f549692d00
+  file:
+    - target/document-parser-*.jar
+    - document-parser-*-distribution.zip
+  skip_cleanup: true
+  on:
+    tags: true
