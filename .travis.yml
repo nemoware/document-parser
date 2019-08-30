@@ -10,10 +10,8 @@ jobs:
 deploy:
   provider: releases
   api_key:
-    secure: a7eecfe916b1bb07a7845034e2fc65f549692d00
+    secure: Vl3Qs2ZJ8HqzhZgLh0Zi4TNIckoy8AokCuNZwPvH3JxuQq7BAKxA9dAMmwbJtDF+25h1gRjL9M7V2hZmXXDeaLmOttotylrrSN0yjUhXwhRZpbcRv1W8ZxpwpN6zn9e1m2bM4CydwYpaiF6trvCD84NSW2waOkiRY7kyI3aYupmRiwKNS19MqVP/Xnir5cLN3SkrL8FQBGQ7a9JZDP0LCEaG0382izGOiCTS3IzLWBksBXeI/YCucT56qJuty7rW6oOimfJAWLTc9vnrL2Fn+ouRPqBN3mZg4Cc40s+rhWSKT8SOK8qBTzayJLqbYEbfpHu1w9uT/a19v0A9Xgmnwn/wYRYofPsXnJwRbKP9i1jpfxVM6k4tEx+VSCnaSOxBL1YMwdPc+brr5codeVE55Hz7OFQzexWJTJtD2kC6Fs7hnJB505SHPufwMerxs6TK50/LqUml9XSMyE1Wz57z/0Hm1hrIBxDHg+oSddd56qH8SxxYnfXDO1f9HbIcxrC5nQyv1wFVE8SN54k6E0yxPjCUQlGyifmgGGVk2yRr4FtpetL4+cKnftUqty5NgZBrWkc6+XA/3zofaiCOAWC4SGom7cziy3vu+exF7nwaTnSqSfKoPoot45JZ1S6f5W4jgT5lpQq0Y8fI5WQfm1wvxhfoI4GLk6k7Agyo0Tmg8VA=
   file:
     - target/document-parser-*.jar
     - document-parser-*-distribution.zip
   skip_cleanup: true
-  on:
-    tags: true
