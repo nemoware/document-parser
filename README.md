@@ -1,5 +1,7 @@
 # document-parser
 
+[![Build Status](https://travis-ci.com/nemoware/document-parser.svg?branch=master)](https://travis-ci.com/nemoware/document-parser)
+
 для сборки и запуска надо:
 1. Java 11+
 2. Maven 3+
