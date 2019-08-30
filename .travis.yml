@@ -16,5 +16,6 @@ deploy:
   file:
     - target/document-parser-*.jar
     - target/document-parser-*-distribution.zip
+  skip_cleanup: true
   on:
     repo: nemoware/document-parser
