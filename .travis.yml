@@ -1,17 +1,20 @@
 language: java
 before_script:
-  - wget https://github.com/sormuras/bach/raw/master/install-jdk.sh
-
+- wget https://github.com/sormuras/bach/raw/master/install-jdk.sh
 jobs:
   include:
-  - stage: 🚫 jdk.java.net - Archived OpenJDK General-Availability Releases
-    env: JDK=11 🚫
+  - stage: "\U0001F6AB jdk.java.net - Archived OpenJDK General-Availability Releases"
+    env: "JDK=11 \U0001F6AB"
     script: source ./install-jdk.sh --feature 11
+cache:
+  directories:
+  - "$HOME/.m2"
 deploy:
   provider: releases
   api_key:
-    secure: Vl3Qs2ZJ8HqzhZgLh0Zi4TNIckoy8AokCuNZwPvH3JxuQq7BAKxA9dAMmwbJtDF+25h1gRjL9M7V2hZmXXDeaLmOttotylrrSN0yjUhXwhRZpbcRv1W8ZxpwpN6zn9e1m2bM4CydwYpaiF6trvCD84NSW2waOkiRY7kyI3aYupmRiwKNS19MqVP/Xnir5cLN3SkrL8FQBGQ7a9JZDP0LCEaG0382izGOiCTS3IzLWBksBXeI/YCucT56qJuty7rW6oOimfJAWLTc9vnrL2Fn+ouRPqBN3mZg4Cc40s+rhWSKT8SOK8qBTzayJLqbYEbfpHu1w9uT/a19v0A9Xgmnwn/wYRYofPsXnJwRbKP9i1jpfxVM6k4tEx+VSCnaSOxBL1YMwdPc+brr5codeVE55Hz7OFQzexWJTJtD2kC6Fs7hnJB505SHPufwMerxs6TK50/LqUml9XSMyE1Wz57z/0Hm1hrIBxDHg+oSddd56qH8SxxYnfXDO1f9HbIcxrC5nQyv1wFVE8SN54k6E0yxPjCUQlGyifmgGGVk2yRr4FtpetL4+cKnftUqty5NgZBrWkc6+XA/3zofaiCOAWC4SGom7cziy3vu+exF7nwaTnSqSfKoPoot45JZ1S6f5W4jgT5lpQq0Y8fI5WQfm1wvxhfoI4GLk6k7Agyo0Tmg8VA=
+    secure: xDT4Zq9W9nS4SzkFINCuOS9ARiC56f6qTg2ffQfQdNT/qULwN5BeGDkeFRa0fafov856OF7oo8ne/nWdPYp3sHCNYiZx0QdsPPJHUqfI8ceJAfFBg7jw3teOP/qnyLkal4oIVe3oFrX6+E2dBS9xh8JY4WArFPw63z5K/Y+MTNcQ5evwqwOWMINaTa5/wFV8s9UOuLcTDideLZ9o5E1RQ/9Pl6Aey6BPf3tt2ECZb4oYf3KkH6jyOHqqzYIetvffi9K5ir9i7yZu9hyyIy6gcWKDUp9EcZ5mtSluQM6WczPa9CwueTfjQF5o/v8eBGAeqyyfQ4IhsFCm6J6y+FRQTHuVHahTHx4mrhJEnRPxE8wASBggaZYKoYoQTeo6HSQY3jFQ6phgzTejdGPoaWMkrjMTLYwT8MTjpLqyYQKrUgd6GS2ZRJXbU1LGVmHehQRy9PWyDsPm5e0r7vNrIt3TB7HQWx9w6l0vwoOsXWaA7e2rgmeLeuwN1v+BQZUMRpvxhEfkzo5fXHLCQYHdErZIHsNyAme2yjhOja2v4Ffm/Fv/DGf+MzMKVqfctoxiXInruhMZ40sY6TpbS6TbVu1L2YYO5EJucur0yT2Orew0ht8z9sCKK6kHKo6jqWN3cd/BwpZ5RG0LN1bUpMexMlBSbifEMNrq2eAfJ/4ghtM7Dhs=
   file:
     - target/document-parser-*.jar
-    - document-parser-*-distribution.zip
-  skip_cleanup: true
+    - target/document-parser-*-distribution.zip
+  on:
+    repo: nemoware/document-parser
