@@ -1,5 +1,9 @@
 language: java
-jdk:
-  - oraclejdk8
-  - oraclejdk9
-  - openjdk8
+before_script:
+  - wget https://github.com/sormuras/bach/raw/master/install-jdk.sh
+
+jobs:
+  include:
+  - stage: 🚫 jdk.java.net - Archived OpenJDK General-Availability Releases
+    env: JDK=11 🚫
+    script: source ./install-jdk.sh --feature 11
