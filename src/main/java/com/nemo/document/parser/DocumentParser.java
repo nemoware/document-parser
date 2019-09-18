@@ -19,10 +19,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class DocumentParser {
-    private static String dateRegEx = ".?(?<day>0?[1-9]|[1-2][0-9]|3[01]).?\\s*(?<month>января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s*(?<year>\\d{4})";
+    private static String dateRegEx = "(?<day>[1-2][0-9]|3[01]|0?[1-9]).{0,3}?\\s*(?<month>января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s*(?<year>\\d{4})";
     private static Logger logger = LoggerFactory.getLogger(DocumentParser.class);
     private static     String[] shortMonths = {
-            "янв", "фев", "мар", "апр", "май", "июн",
+            "янв", "фев", "мар", "апр", "ма", "июн",
             "июл", "авг", "сен", "окт", "ноя", "дек"};
     private static Map<String, DocumentType> keyToDocType = Map.ofEntries(
             new AbstractMap.SimpleEntry<>("договор", DocumentType.CONTRACT),
@@ -50,30 +50,29 @@ public class DocumentParser {
                 int paragraphQuantity = range.numParagraphs();
                 for(int i = 0; i < paragraphQuantity; i++){
                     Paragraph paragraph = range.getParagraph(i);
-                    StyleDescription styleDescription = doc.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
-                    if(isHeader(paragraph, styleDescription)){
-                        if(isPrevHeader){
-                            currentParagraph.getParagraphHeader().addText(paragraph.text());
+                    if(!paragraph.text().trim().isEmpty()) {
+                        StyleDescription styleDescription = doc.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
+                        if (isHeader(paragraph, styleDescription)) {
+                            if (isPrevHeader) {
+                                currentParagraph.getParagraphHeader().addText(paragraph.text());
+                            } else {
+                                currentParagraph = new com.nemo.document.parser.Paragraph();
+                                result.addParagraph(currentParagraph);
+                                currentParagraph.setParagraphHeader(new TextSegment(paragraph.getStartOffset(), paragraph.text()));
+                            }
+                            isPrevHeader = true;
+                        } else {
+                            if (currentParagraph == null) {
+                                currentParagraph = new com.nemo.document.parser.Paragraph();
+                                result.addParagraph(currentParagraph);
+                            }
+                            if (currentParagraph.getParagraphBody().getOffset() == -1) {
+                                currentParagraph.setParagraphBody(new TextSegment(paragraph.getStartOffset(), paragraph.text()));
+                            } else {
+                                currentParagraph.getParagraphBody().addText(paragraph.text());
+                            }
+                            isPrevHeader = false;
                         }
-                        else {
-                            currentParagraph = new com.nemo.document.parser.Paragraph();
-                            result.addParagraph(currentParagraph);
-                            currentParagraph.setParagraphHeader(new TextSegment(paragraph.getStartOffset(), paragraph.text()));
-                        }
-                        isPrevHeader = true;
-                    }
-                    else{
-                        if(currentParagraph == null){
-                            currentParagraph = new com.nemo.document.parser.Paragraph();
-                            result.addParagraph(currentParagraph);
-                        }
-                        if(currentParagraph.getParagraphBody() == null) {
-                            currentParagraph.setParagraphBody(new TextSegment(paragraph.getStartOffset(), paragraph.text()));
-                        }
-                        else{
-                            currentParagraph.getParagraphBody().addText(paragraph.text());
-                        }
-                        isPrevHeader = false;
                     }
                 }
                 break;
@@ -108,7 +107,7 @@ public class DocumentParser {
                                 currentParagraph = new com.nemo.document.parser.Paragraph();
                                 result.addParagraph(currentParagraph);
                             }
-                            if (currentParagraph.getParagraphBody() == null) {
+                            if (currentParagraph.getParagraphBody().getOffset() == -1) {
                                 currentParagraph.setParagraphBody(new TextSegment(globalOffset, paragraph.getText()));
                             } else {
                                 currentParagraph.getParagraphBody().addText(paragraph.getText());
@@ -123,22 +122,28 @@ public class DocumentParser {
         if(result.getParagraphs().size() > 0){
             com.nemo.document.parser.Paragraph firstParagraph = result.getParagraphs().get(0);
             Pattern pattern = Pattern.compile(dateRegEx, Pattern.CASE_INSENSITIVE);
-            Matcher matcher = pattern.matcher(firstParagraph.getParagraphHeader().getText());
+            String firstHeader = "";
+            if(firstParagraph.getParagraphHeader() != null) {
+                firstHeader = firstParagraph.getParagraphHeader().getText();
+                int firstOccurrence = firstParagraph.getParagraphHeader().getLength();
+                for(AbstractMap.Entry<String, DocumentType> entry : keyToDocType.entrySet()){
+                    int idx = StringUtils.indexOfIgnoreCase(firstParagraph.getParagraphHeader().getText(), entry.getKey());
+                    if(idx >= 0 && firstOccurrence > idx){
+                        result.setDocumentType(entry.getValue());
+                        firstOccurrence = idx;
+                    }
+                }
+            }
+            Matcher matcher = pattern.matcher(firstHeader.toLowerCase());
             if(matcher.find()){
                 result.setDocumentDate(parseDate(matcher));
             }
             else{
-                matcher = pattern.matcher(firstParagraph.getParagraphBody().getText());
-                if(matcher.find()) {
-                    result.setDocumentDate(parseDate(matcher));
-                }
-            }
-            int firstOccurrence = firstParagraph.getParagraphHeader().getLength();
-            for(AbstractMap.Entry<String, DocumentType> entry : keyToDocType.entrySet()){
-                int idx = StringUtils.indexOfIgnoreCase(firstParagraph.getParagraphHeader().getText(), entry.getKey());
-                if(idx >= 0 && firstOccurrence > idx){
-                    result.setDocumentType(entry.getValue());
-                    firstOccurrence = idx;
+                if(firstParagraph.getParagraphBody() != null) {
+                    matcher = pattern.matcher(firstParagraph.getParagraphBody().getText().toLowerCase());
+                    if (matcher.find()) {
+                        result.setDocumentDate(parseDate(matcher));
+                    }
                 }
             }
         }

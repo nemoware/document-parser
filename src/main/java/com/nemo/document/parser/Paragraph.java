@@ -1,8 +1,8 @@
 package com.nemo.document.parser;
 
 public class Paragraph {
-    private TextSegment paragraphHeader;
-    private TextSegment paragraphBody;
+    private TextSegment paragraphHeader = new TextSegment(-1, "");
+    private TextSegment paragraphBody = new TextSegment(-1, "");
 
     public TextSegment getParagraphHeader() {
         return paragraphHeader;
