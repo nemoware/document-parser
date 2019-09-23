@@ -9,4 +9,6 @@ public enum DocumentType {
     CHARITY_POLICY,
     ORDER,
     WORK_PLAN,
+    SUPPLEMENTARY_AGREEMENT,
+    ANNEX,
 }

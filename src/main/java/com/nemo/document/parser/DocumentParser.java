@@ -6,10 +6,12 @@ import org.apache.poi.hwpf.model.StyleDescription;
 import org.apache.poi.hwpf.usermodel.CharacterRun;
 import org.apache.poi.hwpf.usermodel.Paragraph;
 import org.apache.poi.hwpf.usermodel.Range;
+import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.xwpf.usermodel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -19,7 +21,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class DocumentParser {
-    private static String dateRegEx = "(?<day>[1-2][0-9]|3[01]|0?[1-9]).{0,3}?\\s*(?<month>января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\\s*(?<year>\\d{4})";
+    private static String dateRegEx = "(?<day>[1-2][0-9]|3[01]|0?[1-9]).{0,3}?\\s*(?<month>1[0-2]|0[1-9]|января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря).?\\s*(?<year>[1-2]\\d{3})";
+    private static Pattern datePattern = Pattern.compile(dateRegEx, Pattern.CASE_INSENSITIVE);
+    private static Pattern documentNumberPattern = Pattern.compile("№\\s*(?<number>.*?)\\s+");
     private static Logger logger = LoggerFactory.getLogger(DocumentParser.class);
     private static     String[] shortMonths = {
             "янв", "фев", "мар", "апр", "ма", "июн",
@@ -31,12 +35,18 @@ public class DocumentParser {
             new AbstractMap.SimpleEntry<>("положени", DocumentType.REGULATION),
             new AbstractMap.SimpleEntry<>("благотворител", DocumentType.CHARITY_POLICY),
             new AbstractMap.SimpleEntry<>("приказ", DocumentType.ORDER),
-            new AbstractMap.SimpleEntry<>("план работ", DocumentType.WORK_PLAN)
+            new AbstractMap.SimpleEntry<>("план работ", DocumentType.WORK_PLAN),
+            new AbstractMap.SimpleEntry<>("дополнительное соглашение", DocumentType.SUPPLEMENTARY_AGREEMENT),
+            new AbstractMap.SimpleEntry<>("приложение", DocumentType.ANNEX)
     );
+    private static Pattern tableOfContentDocPattern = Pattern.compile("\"_Toc\\d+\"");
+    static{
+        ZipSecureFile.setMinInflateRatio(0.0001d);
+    }
 
     public static DocumentStructure parse(String filePath) throws IOException {
         String extension = filePath.substring(filePath.lastIndexOf(".") + 1).toUpperCase();
-        return parse(new FileInputStream(filePath), DocumentFileType.valueOf(extension));
+        return parse(new FileInputStream(new File(filePath)), DocumentFileType.valueOf(extension));
     }
 
     public static DocumentStructure parse(InputStream inputStream, DocumentFileType documentFileType) throws IOException {
@@ -51,8 +61,11 @@ public class DocumentParser {
                 for(int i = 0; i < paragraphQuantity; i++){
                     Paragraph paragraph = range.getParagraph(i);
                     if(!paragraph.text().trim().isEmpty()) {
-                        StyleDescription styleDescription = doc.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
-                        if (isHeader(paragraph, styleDescription)) {
+                        if (isTableOfContent(paragraph.text())){
+                            continue;
+                        }
+//                        StyleDescription styleDescription = doc.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
+                        if (isHeader(paragraph)) {
                             if (isPrevHeader) {
                                 currentParagraph.getParagraphHeader().addText(paragraph.text());
                             } else {
@@ -79,21 +92,22 @@ public class DocumentParser {
             case DOCX:
                 XWPFDocument docx = new XWPFDocument(inputStream);
                 List<XWPFParagraph> paragraphs = docx.getParagraphs();
+                //todo: skip XWPFSDT
                 int globalOffset = 0;
-                List<XWPFParagraph> excludeParagraphs = new ArrayList<>();
-                List<XWPFTable> tables = docx.getTables();
-                for (XWPFTable table : tables){
-                    List<XWPFTableRow> rows = table.getRows();
-                    for(XWPFTableRow row : rows){
-                        List<XWPFTableCell> cells = row.getTableCells();
-                        for(XWPFTableCell cell : cells){
-                            excludeParagraphs.addAll(cell.getParagraphs());
-                        }
-                    }
-                }
+//                List<XWPFParagraph> excludeParagraphs = new ArrayList<>();
+//                List<XWPFTable> tables = docx.getTables();
+//                for (XWPFTable table : tables){
+//                    List<XWPFTableRow> rows = table.getRows();
+//                    for(XWPFTableRow row : rows){
+//                        List<XWPFTableCell> cells = row.getTableCells();
+//                        for(XWPFTableCell cell : cells){
+//                            excludeParagraphs.addAll(cell.getParagraphs());
+//                        }
+//                    }
+//                }
                 for(XWPFParagraph paragraph : paragraphs){
                     if(!paragraph.getText().trim().isEmpty()) {
-                        if (isHeader(paragraph, excludeParagraphs)) {
+                        if (isHeader(paragraph, null)) {
                             if (isPrevHeader) {
                                 currentParagraph.getParagraphHeader().addText(paragraph.getText());
                             } else {
@@ -121,33 +135,59 @@ public class DocumentParser {
         }
         if(result.getParagraphs().size() > 0){
             com.nemo.document.parser.Paragraph firstParagraph = result.getParagraphs().get(0);
-            Pattern pattern = Pattern.compile(dateRegEx, Pattern.CASE_INSENSITIVE);
-            String firstHeader = "";
-            if(firstParagraph.getParagraphHeader() != null) {
-                firstHeader = firstParagraph.getParagraphHeader().getText();
-                int firstOccurrence = firstParagraph.getParagraphHeader().getLength();
-                for(AbstractMap.Entry<String, DocumentType> entry : keyToDocType.entrySet()){
-                    int idx = StringUtils.indexOfIgnoreCase(firstParagraph.getParagraphHeader().getText(), entry.getKey());
-                    if(idx >= 0 && firstOccurrence > idx){
-                        result.setDocumentType(entry.getValue());
-                        firstOccurrence = idx;
-                    }
-                }
-            }
-            Matcher matcher = pattern.matcher(firstHeader.toLowerCase());
+            result.setDocumentType(findDocumentType(firstParagraph));
+            result.setDocumentDate(findDocumentDate(firstParagraph));
+            result.setDocumentNumber(findDocumentNumber(firstParagraph));
+        }
+        return result;
+    }
+
+    private static String findDocumentNumber(com.nemo.document.parser.Paragraph firstParagraph){
+        String result = "";
+        if(firstParagraph.getParagraphHeader() != null) {
+            Matcher matcher = documentNumberPattern.matcher(firstParagraph.getParagraphHeader().getText());
             if(matcher.find()){
-                result.setDocumentDate(parseDate(matcher));
+                result = matcher.group("number");
             }
-            else{
-                if(firstParagraph.getParagraphBody() != null) {
-                    matcher = pattern.matcher(firstParagraph.getParagraphBody().getText().toLowerCase());
+        }
+        return result;
+    }
+
+    private static LocalDate findDocumentDate(com.nemo.document.parser.Paragraph firstParagraph){
+        if(firstParagraph.getParagraphHeader() != null) {
+            String firstHeader = firstParagraph.getParagraphHeader().getText();
+            Matcher matcher = datePattern.matcher(firstHeader.toLowerCase());
+            if (matcher.find()) {
+                return parseDate(matcher);
+            } else {
+                if (firstParagraph.getParagraphBody() != null) {
+                    matcher = datePattern.matcher(firstParagraph.getParagraphBody().getText().toLowerCase());
                     if (matcher.find()) {
-                        result.setDocumentDate(parseDate(matcher));
+                        return parseDate(matcher);
                     }
                 }
             }
         }
+        return null;
+    }
+
+    private static DocumentType findDocumentType(com.nemo.document.parser.Paragraph firstParagraph){
+        DocumentType result = DocumentType.UNKNOWN;
+        if(firstParagraph.getParagraphHeader() != null) {
+            int firstOccurrence = firstParagraph.getParagraphHeader().getLength();
+            for(AbstractMap.Entry<String, DocumentType> entry : keyToDocType.entrySet()){
+                int idx = StringUtils.indexOfIgnoreCase(firstParagraph.getParagraphHeader().getText(), entry.getKey());
+                if(idx >= 0 && firstOccurrence > idx){
+                    result = entry.getValue();
+                    firstOccurrence = idx;
+                }
+            }
+        }
         return result;
+    }
+
+    private static boolean isTableOfContent(String paragraphText){
+        return tableOfContentDocPattern.matcher(paragraphText).find();
     }
 
     private static LocalDate parseDate(Matcher matcher){
@@ -163,10 +203,10 @@ public class DocumentParser {
                 return i + 1;
             }
         }
-        return 0;
+        return Integer.parseInt(monthString);
     }
 
-    private static boolean isHeader(Paragraph paragraph, StyleDescription styleDescription){
+    private static boolean isHeader(Paragraph paragraph){
         if(paragraph.text().trim().length() == 0){
             return false;
         }
@@ -174,9 +214,9 @@ public class DocumentParser {
 //        if(styleDescription.getName().equals("Title")){
 //            return true;
 //        }
-        if(paragraph.isInTable()){
-            return false;
-        }
+//        if(paragraph.isInTable()){
+//            return false;
+//        }
 
         int alignment = paragraph.getFontAlignment();
         int justification = paragraph.getJustification();
@@ -208,7 +248,7 @@ public class DocumentParser {
 //            return true;
 //        }
 
-        if(excludeParagraphs.contains(paragraph)){
+        if(excludeParagraphs != null && excludeParagraphs.contains(paragraph)){
             return false;
         }
 

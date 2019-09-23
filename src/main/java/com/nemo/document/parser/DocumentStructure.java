@@ -12,6 +12,7 @@ public class DocumentStructure {
     @JsonSerialize(using = LocalDateSerializer.class)
     private LocalDate documentDate;
     private DocumentType documentType = DocumentType.UNKNOWN;
+    private String documentNumber = "";
 
     private List<Paragraph> paragraphs = new ArrayList<>();
 
@@ -38,5 +39,13 @@ public class DocumentStructure {
 
     public void setDocumentType(DocumentType documentType) {
         this.documentType = documentType;
+    }
+
+    public String getDocumentNumber() {
+        return documentNumber;
+    }
+
+    public void setDocumentNumber(String documentNumber) {
+        this.documentNumber = documentNumber;
     }
 }
