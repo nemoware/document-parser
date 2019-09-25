@@ -1,15 +1,22 @@
 package com.nemo.document.parser;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.apache.poi.hwpf.HWPFDocument;
 import org.apache.poi.hwpf.model.StyleDescription;
-import org.apache.poi.hwpf.usermodel.CharacterRun;
+import org.apache.poi.hwpf.usermodel.*;
 import org.apache.poi.hwpf.usermodel.Paragraph;
-import org.apache.poi.hwpf.usermodel.Range;
 import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.xwpf.usermodel.*;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTR;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSimpleField;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -21,9 +28,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class DocumentParser {
-    private static String dateRegEx = "(?<day>[1-2][0-9]|3[01]|0?[1-9]).{0,3}?\\s*(?<month>1[0-2]|0[1-9]|января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря).?\\s*(?<year>[1-2]\\d{3})";
+    private static String dateRegEx = "(?<day>[1-2][0-9]|3[01]|0?[1-9]).\\s*(?<month>1[0-2]|0[1-9]|января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря).\\s*(?<year>[1-2]\\d{3})";
     private static Pattern datePattern = Pattern.compile(dateRegEx, Pattern.CASE_INSENSITIVE);
-    private static Pattern documentNumberPattern = Pattern.compile("№\\s*(?<number>.*?)\\s+");
+    private static Pattern documentNumberPattern = Pattern.compile("№\\s*(?<number>\\S+)(\\s+|$)");
     private static Logger logger = LoggerFactory.getLogger(DocumentParser.class);
     private static     String[] shortMonths = {
             "янв", "фев", "мар", "апр", "ма", "июн",
@@ -39,7 +46,11 @@ public class DocumentParser {
             new AbstractMap.SimpleEntry<>("дополнительное соглашение", DocumentType.SUPPLEMENTARY_AGREEMENT),
             new AbstractMap.SimpleEntry<>("приложение", DocumentType.ANNEX)
     );
-    private static Pattern tableOfContentDocPattern = Pattern.compile("\"_Toc\\d+\"");
+    private static Pattern tableOfContentDocPattern = Pattern.compile("PAGEREF _Toc\\d+");
+    final private static int maxHeaderLength = 1000;
+    final private static int maxBodyLength = 100000;
+    final private static int firstParagraphBodyCheckLength = 100;
+
     static{
         ZipSecureFile.setMinInflateRatio(0.0001d);
     }
@@ -50,6 +61,7 @@ public class DocumentParser {
     }
 
     public static DocumentStructure parse(InputStream inputStream, DocumentFileType documentFileType) throws IOException {
+        long startTime = System.currentTimeMillis();
         DocumentStructure result = new DocumentStructure();
         com.nemo.document.parser.Paragraph currentParagraph = null;
         boolean isPrevHeader = false;
@@ -57,6 +69,8 @@ public class DocumentParser {
             case DOC:
                 HWPFDocument doc = new HWPFDocument(inputStream);
                 Range range = doc.getRange();
+                TableIterator tableIterator = new TableIterator(range);
+                List<InternalTable> tables = getTablesAndParagraphs(tableIterator);
                 int paragraphQuantity = range.numParagraphs();
                 for(int i = 0; i < paragraphQuantity; i++){
                     Paragraph paragraph = range.getParagraph(i);
@@ -65,7 +79,7 @@ public class DocumentParser {
                             continue;
                         }
 //                        StyleDescription styleDescription = doc.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
-                        if (isHeader(paragraph)) {
+                        if (isHeader(paragraph, tables)) {
                             if (isPrevHeader) {
                                 currentParagraph.getParagraphHeader().addText(paragraph.text());
                             } else {
@@ -91,55 +105,50 @@ public class DocumentParser {
                 break;
             case DOCX:
                 XWPFDocument docx = new XWPFDocument(inputStream);
-                List<XWPFParagraph> paragraphs = docx.getParagraphs();
-                //todo: skip XWPFSDT
+                List<IBodyElement> elements = docx.getBodyElements();
                 int globalOffset = 0;
-//                List<XWPFParagraph> excludeParagraphs = new ArrayList<>();
-//                List<XWPFTable> tables = docx.getTables();
-//                for (XWPFTable table : tables){
-//                    List<XWPFTableRow> rows = table.getRows();
-//                    for(XWPFTableRow row : rows){
-//                        List<XWPFTableCell> cells = row.getTableCells();
-//                        for(XWPFTableCell cell : cells){
-//                            excludeParagraphs.addAll(cell.getParagraphs());
-//                        }
-//                    }
-//                }
-                for(XWPFParagraph paragraph : paragraphs){
-                    if(!paragraph.getText().trim().isEmpty()) {
-                        if (isHeader(paragraph, null)) {
-                            if (isPrevHeader) {
-                                currentParagraph.getParagraphHeader().addText(paragraph.getText());
-                            } else {
-                                currentParagraph = new com.nemo.document.parser.Paragraph();
-                                result.addParagraph(currentParagraph);
-                                currentParagraph.setParagraphHeader(new TextSegment(globalOffset, paragraph.getText()));
-                            }
-                            isPrevHeader = true;
-                        } else {
-                            if (currentParagraph == null) {
-                                currentParagraph = new com.nemo.document.parser.Paragraph();
-                                result.addParagraph(currentParagraph);
-                            }
-                            if (currentParagraph.getParagraphBody().getOffset() == -1) {
-                                currentParagraph.setParagraphBody(new TextSegment(globalOffset, paragraph.getText()));
-                            } else {
-                                currentParagraph.getParagraphBody().addText(paragraph.getText());
-                            }
-                            isPrevHeader = false;
-                        }
-                        globalOffset += paragraph.getText().length();
-                    }
+                for(IBodyElement element : elements){
+                    Triple<Boolean, com.nemo.document.parser.Paragraph, Integer> elementResult =
+                            processBodyElement(element, currentParagraph, isPrevHeader, globalOffset, result);
+                    isPrevHeader = elementResult.getLeft();
+                    currentParagraph = elementResult.getMiddle();
+                    globalOffset = elementResult.getRight();
                 }
                 break;
         }
+        checkDocumentStructure(result);
         if(result.getParagraphs().size() > 0){
             com.nemo.document.parser.Paragraph firstParagraph = result.getParagraphs().get(0);
             result.setDocumentType(findDocumentType(firstParagraph));
             result.setDocumentDate(findDocumentDate(firstParagraph));
             result.setDocumentNumber(findDocumentNumber(firstParagraph));
         }
+        logger.info("Document processed successfully. Time spent {}ms", System.currentTimeMillis() - startTime);
         return result;
+    }
+
+    private static void checkDocumentStructure(DocumentStructure documentStructure){
+        for(int i = 0; i < documentStructure.getParagraphs().size(); i++){
+            com.nemo.document.parser.Paragraph paragraph = documentStructure.getParagraphs().get(i);
+            if(paragraph.getParagraphHeader().getLength() > maxHeaderLength){
+                String longHeader =  paragraph.getParagraphHeader().getText();
+                Pattern pattern = Pattern.compile("\r|\n");
+                Matcher matcher = pattern.matcher(longHeader);
+                if(matcher.find()){
+                    String shortHeader = longHeader.substring(0, matcher.start());
+                    String newBody = longHeader.substring(matcher.start()) + paragraph.getParagraphBody().getText();
+                    paragraph.setParagraphHeader(new TextSegment(paragraph.getParagraphHeader().getOffset(), shortHeader));
+                    paragraph.setParagraphBody(new TextSegment(paragraph.getParagraphHeader().getOffset() + paragraph.getParagraphHeader().getLength(),
+                            newBody));
+                }
+                else{
+                    logger.warn("Paragraph header is too large. Paragraph number={}, header length={}", i, paragraph.getParagraphBody().getLength());
+                }
+            }
+            if(paragraph.getParagraphBody().getLength() > maxBodyLength){
+                logger.warn("Paragraph body is too large. Paragraph number={}, body length={}", i, paragraph.getParagraphBody().getLength());
+            }
+        }
     }
 
     private static String findDocumentNumber(com.nemo.document.parser.Paragraph firstParagraph){
@@ -159,9 +168,12 @@ public class DocumentParser {
             Matcher matcher = datePattern.matcher(firstHeader.toLowerCase());
             if (matcher.find()) {
                 return parseDate(matcher);
-            } else {
+            }
+            else {
                 if (firstParagraph.getParagraphBody() != null) {
-                    matcher = datePattern.matcher(firstParagraph.getParagraphBody().getText().toLowerCase());
+                    String firstParagraphBody = firstParagraph.getParagraphBody().getText()
+                            .substring(0, Math.min(firstParagraphBodyCheckLength, firstParagraph.getParagraphBody().getLength()));
+                    matcher = datePattern.matcher(firstParagraphBody.toLowerCase());
                     if (matcher.find()) {
                         return parseDate(matcher);
                     }
@@ -186,8 +198,91 @@ public class DocumentParser {
         return result;
     }
 
+    private static Triple<Boolean, com.nemo.document.parser.Paragraph, Integer>
+        processBodyElement(IBodyElement element, com.nemo.document.parser.Paragraph currentParagraph, boolean isPrevHeader,
+                       int globalOffset, DocumentStructure result){
+        if(element.getElementType() == BodyElementType.CONTENTCONTROL){
+            return new ImmutableTriple<>(isPrevHeader, currentParagraph, globalOffset);
+        }
+        if(element.getElementType() == BodyElementType.TABLE){
+            XWPFTable table = (XWPFTable)element;
+            int prevNumCells = -1;
+            boolean constantColumnNumber = true;
+            for(XWPFTableRow row : table.getRows()){
+                if(constantColumnNumber && prevNumCells != -1 &&
+                        prevNumCells != row.getTableCells().size() && row.getTableCells().size() != 0){
+                    constantColumnNumber = false;
+                }
+                if(row.getTableCells().size() != 0) {
+                    prevNumCells = row.getTableCells().size();
+                }
+            }
+            for(XWPFTableRow row : table.getRows()){
+                for(XWPFTableCell cell : row.getTableCells()){
+                    for(IBodyElement bodyElement : cell.getBodyElements()){
+                        Triple<Boolean, com.nemo.document.parser.Paragraph, Integer> elementResult =
+                                processBodyElement(bodyElement, currentParagraph, isPrevHeader, globalOffset, result);
+                        isPrevHeader = elementResult.getLeft();
+                        currentParagraph = elementResult.getMiddle();
+                        globalOffset = elementResult.getRight();
+                    }
+                }
+            }
+        }
+        if(element.getElementType() == BodyElementType.PARAGRAPH) {
+            XWPFParagraph paragraph = (XWPFParagraph)element;
+            Pair<Boolean, com.nemo.document.parser.Paragraph> paragrapResult =
+                    processXWPFParagraph(paragraph, currentParagraph, isPrevHeader, globalOffset, result);
+            isPrevHeader = paragrapResult.getLeft();
+            currentParagraph = paragrapResult.getRight();
+            globalOffset += paragraph.getText().length();
+        }
+        return new ImmutableTriple<>(isPrevHeader, currentParagraph, globalOffset);
+    }
+
+    private static Pair<Boolean, com.nemo.document.parser.Paragraph> processXWPFParagraph(XWPFParagraph paragraph, com.nemo.document.parser.Paragraph currentParagraph,
+                                                                                          boolean isPrevHeader, int globalOffset, DocumentStructure result){
+        if (!paragraph.getText().trim().isEmpty()) {
+            if(isTableOfContent(paragraph)){
+                return new ImmutablePair<>(isPrevHeader, currentParagraph);
+            }
+            if (isHeader(paragraph, null)) {
+                if (isPrevHeader) {
+                    currentParagraph.getParagraphHeader().addText(paragraph.getText());
+                } else {
+                    currentParagraph = new com.nemo.document.parser.Paragraph();
+                    result.addParagraph(currentParagraph);
+                    currentParagraph.setParagraphHeader(new TextSegment(globalOffset, paragraph.getText()));
+                }
+                return new ImmutablePair<>(true, currentParagraph);
+            } else {
+                if (currentParagraph == null) {
+                    currentParagraph = new com.nemo.document.parser.Paragraph();
+                    result.addParagraph(currentParagraph);
+                }
+                if (currentParagraph.getParagraphBody().getOffset() == -1) {
+                    currentParagraph.setParagraphBody(new TextSegment(globalOffset, paragraph.getText()));
+                } else {
+                    currentParagraph.getParagraphBody().addText(paragraph.getText());
+                }
+                return new ImmutablePair<>(false, currentParagraph);
+            }
+        }
+        return new ImmutablePair<>(isPrevHeader, currentParagraph);
+    }
+
     private static boolean isTableOfContent(String paragraphText){
         return tableOfContentDocPattern.matcher(paragraphText).find();
+    }
+
+    private static boolean isTableOfContent(XWPFParagraph paragraph){
+        StringBuilder instrSB = new StringBuilder();
+        for(CTR ctr : paragraph.getCTP().getRList()){
+            for(CTText cttext : ctr.getInstrTextList()){
+                instrSB.append(cttext.getStringValue());
+            }
+        }
+        return tableOfContentDocPattern.matcher(instrSB.toString()).find();
     }
 
     private static LocalDate parseDate(Matcher matcher){
@@ -206,7 +301,55 @@ public class DocumentParser {
         return Integer.parseInt(monthString);
     }
 
-    private static boolean isHeader(Paragraph paragraph){
+    private static List<InternalTable> getTablesAndParagraphs(TableIterator tableIterator){
+        List<InternalTable> result = new ArrayList<>();
+        while(tableIterator.hasNext()){
+            Table table = tableIterator.next();
+            Paragraph[][][] tbl = new Paragraph[table.numRows()][][];
+            InternalTable internalTable = new InternalTable();
+            internalTable.content = tbl;
+            result.add(internalTable);
+            int prevNumCells = -1;
+            for(int row = 0; row < table.numRows(); row++){
+                tbl[row] = new Paragraph[table.getRow(row).numCells()][];
+                if(internalTable.constantColumnNumber && prevNumCells != -1 &&
+                        prevNumCells != table.getRow(row).numCells() && table.getRow(row).numCells() != 0){
+                    internalTable.constantColumnNumber = false;
+                }
+                if(table.getRow(row).numCells() != 0) {
+                    prevNumCells = table.getRow(row).numCells();
+                }
+                for(int column = 0; column < table.getRow(row).numCells(); column++){
+                    tbl[row][column] = new Paragraph[table.getRow(row).getCell(column).numParagraphs()];
+                    for(int paragraphNumber = 0; paragraphNumber < table.getRow(row).getCell(column).numParagraphs(); paragraphNumber++){
+                        tbl[row][column][paragraphNumber] = table.getRow(row).getCell(column).getParagraph(paragraphNumber);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static boolean isSameParagraph(Paragraph paragraph1, Paragraph paragraph2){
+        return paragraph1.getStartOffset() == paragraph2.getStartOffset() && paragraph1.getEndOffset() == paragraph2.getEndOffset();
+    }
+
+    private static Triple<Integer, Integer, Integer> getTableCoords(List<InternalTable> tables, Paragraph paragraph){
+        for(int tbl = 0; tbl < tables.size(); tbl++) {
+            for (int row = 0; row < tables.get(tbl).content.length; row++) {
+                for (int column = 0; column < tables.get(tbl).content[row].length; column++) {
+                    for (int paragraphNumber = 0; paragraphNumber < tables.get(tbl).content[row][column].length; paragraphNumber++) {
+                        if (isSameParagraph(tables.get(tbl).content[row][column][paragraphNumber], paragraph)) {
+                            return new ImmutableTriple<>(tbl, row, column);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isHeader(Paragraph paragraph, List<InternalTable> tables){
         if(paragraph.text().trim().length() == 0){
             return false;
         }
@@ -214,9 +357,13 @@ public class DocumentParser {
 //        if(styleDescription.getName().equals("Title")){
 //            return true;
 //        }
-//        if(paragraph.isInTable()){
-//            return false;
-//        }
+        if(paragraph.isInTable()){
+            Triple<Integer, Integer, Integer> tableCoords = getTableCoords(tables, paragraph);
+            if(tableCoords != null && tables.get(tableCoords.getLeft()).content[tableCoords.getMiddle()].length > 1 &&
+                    !tables.get(tableCoords.getLeft()).constantColumnNumber) {
+                return false;
+            }
+        }
 
         int alignment = paragraph.getFontAlignment();
         int justification = paragraph.getJustification();
@@ -228,11 +375,13 @@ public class DocumentParser {
         boolean allCharactersCapitalized = true;
         for(int j = 0; j < characterRunQuantity; j++) {
             CharacterRun characterRun = paragraph.getCharacterRun(j);
-            if(!characterRun.text().equals(characterRun.text().toUpperCase())){
-                allCharactersCapitalized = false;
-            }
-            if(!characterRun.isBold()){
-                allCharactersBold = false;
+            if(!characterRun.text().trim().isEmpty()) {
+                if (!characterRun.text().equals(characterRun.text().toUpperCase())) {
+                    allCharactersCapitalized = false;
+                }
+                if (!characterRun.isBold()) {
+                    allCharactersBold = false;
+                }
             }
         }
         return allCharactersBold || allCharactersCapitalized;
@@ -261,13 +410,20 @@ public class DocumentParser {
         boolean allCharactersBold = true;
         boolean allCharactersCapitalized = true;
         for(XWPFRun run : runs) {
-            if(!run.text().equals(run.text().toUpperCase())){
-                allCharactersCapitalized = false;
-            }
-            if(!run.isBold()){
-                allCharactersBold = false;
+            if(!run.text().trim().isEmpty()) {
+                if (!run.text().equals(run.text().toUpperCase())) {
+                    allCharactersCapitalized = false;
+                }
+                if (!run.isBold()) {
+                    allCharactersBold = false;
+                }
             }
         }
         return allCharactersBold || allCharactersCapitalized;
+    }
+
+    private static class InternalTable{
+        Paragraph[][][] content;
+        boolean constantColumnNumber = true;
     }
 }
