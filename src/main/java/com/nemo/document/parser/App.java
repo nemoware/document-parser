@@ -1,5 +1,6 @@
 package com.nemo.document.parser;
 
+import ch.qos.logback.classic.Level;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.cli.*;
 import org.slf4j.Logger;
@@ -27,6 +28,8 @@ public class App
             CommandLine line = parser.parse( options, args );
             try {
                 String filePath = line.getOptionValue("i");
+                ch.qos.logback.classic.Logger rootLogger = (ch.qos.logback.classic.Logger)LoggerFactory.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
+                rootLogger.setLevel(Level.toLevel("error"));
                 DocumentStructure documentStructure = DocumentParser.parse(filePath);
                 ObjectMapper mapper = new ObjectMapper();
                 DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
