@@ -109,7 +109,7 @@ public class DocumentParser {
                 int globalOffset = 0;
                 for(IBodyElement element : elements){
                     Triple<Boolean, com.nemo.document.parser.Paragraph, Integer> elementResult =
-                            processBodyElement(element, currentParagraph, isPrevHeader, globalOffset, result);
+                            processBodyElement(element, currentParagraph, isPrevHeader, globalOffset, result, true);
                     isPrevHeader = elementResult.getLeft();
                     currentParagraph = elementResult.getMiddle();
                     globalOffset = elementResult.getRight();
@@ -200,7 +200,7 @@ public class DocumentParser {
 
     private static Triple<Boolean, com.nemo.document.parser.Paragraph, Integer>
         processBodyElement(IBodyElement element, com.nemo.document.parser.Paragraph currentParagraph, boolean isPrevHeader,
-                       int globalOffset, DocumentStructure result){
+                       int globalOffset, DocumentStructure result, boolean canBeHeader){
         if(element.getElementType() == BodyElementType.CONTENTCONTROL){
             return new ImmutableTriple<>(isPrevHeader, currentParagraph, globalOffset);
         }
@@ -218,13 +218,15 @@ public class DocumentParser {
                 }
             }
             for(XWPFTableRow row : table.getRows()){
+                canBeHeader = true;
                 for(XWPFTableCell cell : row.getTableCells()){
                     for(IBodyElement bodyElement : cell.getBodyElements()){
                         Triple<Boolean, com.nemo.document.parser.Paragraph, Integer> elementResult =
-                                processBodyElement(bodyElement, currentParagraph, isPrevHeader, globalOffset, result);
+                                processBodyElement(bodyElement, currentParagraph, isPrevHeader, globalOffset, result, canBeHeader);
                         isPrevHeader = elementResult.getLeft();
                         currentParagraph = elementResult.getMiddle();
                         globalOffset = elementResult.getRight();
+                        canBeHeader = isPrevHeader;
                     }
                 }
             }
@@ -232,7 +234,7 @@ public class DocumentParser {
         if(element.getElementType() == BodyElementType.PARAGRAPH) {
             XWPFParagraph paragraph = (XWPFParagraph)element;
             Pair<Boolean, com.nemo.document.parser.Paragraph> paragrapResult =
-                    processXWPFParagraph(paragraph, currentParagraph, isPrevHeader, globalOffset, result);
+                    processXWPFParagraph(paragraph, currentParagraph, isPrevHeader, globalOffset, result, canBeHeader);
             isPrevHeader = paragrapResult.getLeft();
             currentParagraph = paragrapResult.getRight();
             globalOffset += paragraph.getText().length();
@@ -240,13 +242,14 @@ public class DocumentParser {
         return new ImmutableTriple<>(isPrevHeader, currentParagraph, globalOffset);
     }
 
-    private static Pair<Boolean, com.nemo.document.parser.Paragraph> processXWPFParagraph(XWPFParagraph paragraph, com.nemo.document.parser.Paragraph currentParagraph,
-                                                                                          boolean isPrevHeader, int globalOffset, DocumentStructure result){
+    private static Pair<Boolean, com.nemo.document.parser.Paragraph>
+        processXWPFParagraph(XWPFParagraph paragraph, com.nemo.document.parser.Paragraph currentParagraph,
+        boolean isPrevHeader, int globalOffset, DocumentStructure result, boolean canBeHeader){
         if (!paragraph.getText().trim().isEmpty()) {
             if(isTableOfContent(paragraph)){
                 return new ImmutablePair<>(isPrevHeader, currentParagraph);
             }
-            if (isHeader(paragraph, null)) {
+            if (canBeHeader && isHeader(paragraph, null)) {
                 if (isPrevHeader) {
                     currentParagraph.getParagraphHeader().addText(paragraph.getText());
                 } else {
@@ -411,7 +414,8 @@ public class DocumentParser {
         boolean allCharactersCapitalized = true;
         for(XWPFRun run : runs) {
             if(!run.text().trim().isEmpty()) {
-                if (!run.text().equals(run.text().toUpperCase())) {
+                String upperCaseRun = run.text().toUpperCase();
+                if (!run.text().equals(upperCaseRun) || !upperCaseRun.matches("([A-Z]|[А-Я]){3,}")) {
                     allCharactersCapitalized = false;
                 }
                 if (!run.isBold()) {
