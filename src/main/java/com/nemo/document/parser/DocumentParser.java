@@ -11,9 +11,7 @@ import org.apache.poi.hwpf.usermodel.*;
 import org.apache.poi.hwpf.usermodel.Paragraph;
 import org.apache.poi.openxml4j.util.ZipSecureFile;
 import org.apache.poi.xwpf.usermodel.*;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTR;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSimpleField;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTText;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -44,12 +42,18 @@ public class DocumentParser {
             new AbstractMap.SimpleEntry<>("приказ", DocumentType.ORDER),
             new AbstractMap.SimpleEntry<>("план работ", DocumentType.WORK_PLAN),
             new AbstractMap.SimpleEntry<>("дополнительное соглашение", DocumentType.SUPPLEMENTARY_AGREEMENT),
-            new AbstractMap.SimpleEntry<>("приложение", DocumentType.ANNEX)
+            new AbstractMap.SimpleEntry<>("приложение", DocumentType.ANNEX),
+            new AbstractMap.SimpleEntry<>("утвержден", DocumentType.CHARTER)
     );
     private static Pattern tableOfContentDocPattern = Pattern.compile("PAGEREF _Toc\\d+");
+    private static Pattern alphabetPattern = Pattern.compile("[A-Za-zА-Яа-я0-9]{5,}");
+    private static Pattern alphabetUpperCasePattern = Pattern.compile("[A-ZА-Я]{5,}");
+    private static Pattern ruAlphabetPattern = Pattern.compile("[А-Яа-я]{5,}");
+    private static Pattern engAlphabetPattern = Pattern.compile("[A-Za-z]{5,}");
+    private static Pattern styleNamePattern = Pattern.compile("title|heading|заголовок");
     final private static int maxHeaderLength = 1000;
     final private static int maxBodyLength = 100000;
-    final private static int firstParagraphBodyCheckLength = 100;
+    final private static int firstParagraphBodyCheckLength = 200;
 
     static{
         ZipSecureFile.setMinInflateRatio(0.0001d);
@@ -76,10 +80,11 @@ public class DocumentParser {
                     Paragraph paragraph = range.getParagraph(i);
                     if(!paragraph.text().trim().isEmpty()) {
                         if (isTableOfContent(paragraph.text())){
+                            isPrevHeader = false;
                             continue;
                         }
 //                        StyleDescription styleDescription = doc.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
-                        if (isHeader(paragraph, tables)) {
+                        if (result.getParagraphs().size() == 0 || isHeader(paragraph, doc, tables)) {
                             if (isPrevHeader) {
                                 currentParagraph.getParagraphHeader().addText(paragraph.text());
                             } else {
@@ -121,7 +126,9 @@ public class DocumentParser {
             com.nemo.document.parser.Paragraph firstParagraph = result.getParagraphs().get(0);
             result.setDocumentType(findDocumentType(firstParagraph));
             result.setDocumentDate(findDocumentDate(firstParagraph));
-            result.setDocumentNumber(findDocumentNumber(firstParagraph));
+            if(result.getDocumentType() != DocumentType.CHARTER) {
+                result.setDocumentNumber(findDocumentNumber(firstParagraph));
+            }
         }
         logger.info("Document processed successfully. Time spent {}ms", System.currentTimeMillis() - startTime);
         return result;
@@ -208,6 +215,7 @@ public class DocumentParser {
             XWPFTable table = (XWPFTable)element;
             int prevNumCells = -1;
             boolean constantColumnNumber = true;
+            boolean bilingual = false;
             for(XWPFTableRow row : table.getRows()){
                 if(constantColumnNumber && prevNumCells != -1 &&
                         prevNumCells != row.getTableCells().size() && row.getTableCells().size() != 0){
@@ -217,8 +225,24 @@ public class DocumentParser {
                     prevNumCells = row.getTableCells().size();
                 }
             }
+            if(constantColumnNumber && prevNumCells == 2){
+                for (XWPFTableRow row : table.getRows()) {
+                    StringBuilder cell1Text = new StringBuilder("");
+                    StringBuilder cell2Text = new StringBuilder("");
+                    for (XWPFParagraph paragraph : row.getTableCells().get(0).getParagraphs()) {
+                        cell1Text.append(paragraph.getText());
+                    }
+                    for (XWPFParagraph paragraph : row.getTableCells().get(1).getParagraphs()) {
+                        cell2Text.append(paragraph.getText());
+                    }
+                    if(cell1Text.toString().trim().length() > 0 && cell2Text.toString().trim().length() > 0) {
+                        bilingual = isBilingual(cell1Text.toString(), cell2Text.toString());
+                        break;
+                    }
+                }
+            }
             for(XWPFTableRow row : table.getRows()){
-                canBeHeader = true;
+                canBeHeader = row.getTableCells().size() == 1 || (bilingual);
                 for(XWPFTableCell cell : row.getTableCells()){
                     for(IBodyElement bodyElement : cell.getBodyElements()){
                         Triple<Boolean, com.nemo.document.parser.Paragraph, Integer> elementResult =
@@ -226,7 +250,7 @@ public class DocumentParser {
                         isPrevHeader = elementResult.getLeft();
                         currentParagraph = elementResult.getMiddle();
                         globalOffset = elementResult.getRight();
-                        canBeHeader = isPrevHeader;
+                        canBeHeader = isPrevHeader || result.getParagraphs().size() == 0;
                     }
                 }
             }
@@ -247,9 +271,9 @@ public class DocumentParser {
         boolean isPrevHeader, int globalOffset, DocumentStructure result, boolean canBeHeader){
         if (!paragraph.getText().trim().isEmpty()) {
             if(isTableOfContent(paragraph)){
-                return new ImmutablePair<>(isPrevHeader, currentParagraph);
+                return new ImmutablePair<>(false, currentParagraph);
             }
-            if (canBeHeader && isHeader(paragraph, null)) {
+            if (result.getParagraphs().size() == 0 || (canBeHeader && isHeader(paragraph, null))) {
                 if (isPrevHeader) {
                     currentParagraph.getParagraphHeader().addText(paragraph.getText());
                 } else {
@@ -304,6 +328,17 @@ public class DocumentParser {
         return Integer.parseInt(monthString);
     }
 
+    private static boolean isBilingual(String text1, String text2){
+        Matcher matcher1 = ruAlphabetPattern.matcher(text1);
+        Matcher matcher2 = engAlphabetPattern.matcher(text2);
+        if(matcher1.find() && matcher2.find()){
+            return true;
+        }
+        matcher1 = ruAlphabetPattern.matcher(text2);
+        matcher2 = engAlphabetPattern.matcher(text1);
+        return matcher1.find() && matcher2.find();
+    }
+
     private static List<InternalTable> getTablesAndParagraphs(TableIterator tableIterator){
         List<InternalTable> result = new ArrayList<>();
         while(tableIterator.hasNext()){
@@ -326,6 +361,22 @@ public class DocumentParser {
                     tbl[row][column] = new Paragraph[table.getRow(row).getCell(column).numParagraphs()];
                     for(int paragraphNumber = 0; paragraphNumber < table.getRow(row).getCell(column).numParagraphs(); paragraphNumber++){
                         tbl[row][column][paragraphNumber] = table.getRow(row).getCell(column).getParagraph(paragraphNumber);
+                    }
+                }
+            }
+            if(internalTable.constantColumnNumber && prevNumCells == 2){
+                for (int row = 0; row < internalTable.content.length; row++) {
+                    StringBuilder cell1Text = new StringBuilder("");
+                    StringBuilder cell2Text = new StringBuilder("");
+                    for (int i = 0; i < internalTable.content[0][0].length; i++) {
+                        cell1Text.append(internalTable.content[0][0][i]);
+                    }
+                    for (int i = 0; i < internalTable.content[0][1].length; i++) {
+                        cell2Text.append(internalTable.content[0][1][i]);
+                    }
+                    if(cell1Text.toString().trim().length() > 0 && cell2Text.toString().trim().length() > 0) {
+                        internalTable.bilingual = isBilingual(cell1Text.toString(), cell2Text.toString());
+                        break;
                     }
                 }
             }
@@ -352,18 +403,22 @@ public class DocumentParser {
         return null;
     }
 
-    private static boolean isHeader(Paragraph paragraph, List<InternalTable> tables){
-        if(paragraph.text().trim().length() == 0){
+    private static boolean isHeader(Paragraph paragraph, HWPFDocument document, List<InternalTable> tables){
+        Matcher matcher = alphabetPattern.matcher(paragraph.text());
+        if(!matcher.find()){
             return false;
         }
 
-//        if(styleDescription.getName().equals("Title")){
+//        String styleName = document.getStyleSheet().getStyleDescription(paragraph.getStyleIndex()).getName().toLowerCase();
+//        Matcher styleNameMatcher = styleNamePattern.matcher(styleName);
+//        if(styleNameMatcher.lookingAt()){
 //            return true;
 //        }
+
         if(paragraph.isInTable()){
             Triple<Integer, Integer, Integer> tableCoords = getTableCoords(tables, paragraph);
             if(tableCoords != null && tables.get(tableCoords.getLeft()).content[tableCoords.getMiddle()].length > 1 &&
-                    !tables.get(tableCoords.getLeft()).constantColumnNumber) {
+                    !(tables.get(tableCoords.getLeft()).bilingual)) {
                 return false;
             }
         }
@@ -377,9 +432,14 @@ public class DocumentParser {
         boolean allCharactersBold = true;
         boolean allCharactersCapitalized = true;
         for(int j = 0; j < characterRunQuantity; j++) {
+            if(!allCharactersBold && !allCharactersCapitalized){
+                break;
+            }
             CharacterRun characterRun = paragraph.getCharacterRun(j);
             if(!characterRun.text().trim().isEmpty()) {
-                if (!characterRun.text().equals(characterRun.text().toUpperCase())) {
+                String upperCaseRun = characterRun.text().toUpperCase();
+                matcher = alphabetUpperCasePattern.matcher(upperCaseRun);
+                if (!characterRun.text().equals(upperCaseRun) || !matcher.find()) {
                     allCharactersCapitalized = false;
                 }
                 if (!characterRun.isBold()) {
@@ -391,21 +451,42 @@ public class DocumentParser {
     }
 
     private static boolean isHeader(XWPFParagraph paragraph, List<XWPFParagraph> excludeParagraphs){
-        if(paragraph.getText().trim().length() == 0){
+        Matcher matcher = alphabetPattern.matcher(paragraph.getText());
+        if(!matcher.find()){
             return false;
         }
 
-//        XWPFStyle style = paragraph.getDocument().getStyles().getStyle(paragraph.getStyleID());
-//        if(style != null && style.getName().equals("Title")){
-//            return true;
-//        }
 
         if(excludeParagraphs != null && excludeParagraphs.contains(paragraph)){
             return false;
         }
 
         ParagraphAlignment alignment = paragraph.getAlignment();
-        if(alignment.equals(ParagraphAlignment.CENTER)){
+        if(alignment.equals(ParagraphAlignment.CENTER) || alignment.equals(ParagraphAlignment.RIGHT)){
+            return true;
+        }
+        boolean paragraphBold = false;
+        if(paragraph.getStyleID() != null) {
+            XWPFStyle style = paragraph.getDocument().getStyles().getStyle(paragraph.getStyleID());
+//            if (style != null && style.getCTStyle() != null && style.getCTStyle().getPPr() != null &&
+//                    style.getCTStyle().getPPr().getJc() != null) {
+//                String aligmentValue = style.getCTStyle().getPPr().getJc().getVal().toString().toLowerCase();
+//                if (aligmentValue.equals("center") || aligmentValue.equals("right")) {
+//                    return true;
+//                }
+//            }
+            CTRPr cTRPr = style.getCTStyle().getRPr();
+            if (cTRPr != null) {
+                if (!cTRPr.isSetB()) {
+                    paragraphBold = false;
+                } else {
+                    STOnOff.Enum val = cTRPr.getB().getVal();
+                    paragraphBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+                }
+            }
+
+        }
+        if(paragraphBold){
             return true;
         }
 
@@ -413,12 +494,16 @@ public class DocumentParser {
         boolean allCharactersBold = true;
         boolean allCharactersCapitalized = true;
         for(XWPFRun run : runs) {
+            if(!allCharactersBold && !allCharactersCapitalized){
+                break;
+            }
             if(!run.text().trim().isEmpty()) {
                 String upperCaseRun = run.text().toUpperCase();
-                if (!run.text().equals(upperCaseRun) || !upperCaseRun.matches("([A-Z]|[А-Я]){3,}")) {
+                matcher = alphabetUpperCasePattern.matcher(upperCaseRun);
+                if (!run.text().equals(upperCaseRun) || !matcher.find()) {
                     allCharactersCapitalized = false;
                 }
-                if (!run.isBold()) {
+                if (!isBold(run)) {
                     allCharactersBold = false;
                 }
             }
@@ -426,8 +511,41 @@ public class DocumentParser {
         return allCharactersBold || allCharactersCapitalized;
     }
 
+    private static boolean isBold(XWPFRun run){
+        boolean isRBold = false;
+        CTRPr cTRPr = run.getCTR().getRPr();
+        if (cTRPr != null) {
+            CTString rStyle = cTRPr.getRStyle();
+            if (rStyle != null) {
+                String rStyleId = rStyle.getVal();
+                XWPFStyle style = run.getDocument().getStyles().getStyle(rStyleId);
+                if (style != null) {
+                    cTRPr = style.getCTStyle().getRPr();
+                    if (cTRPr != null) {
+                        if (!cTRPr.isSetB()) {
+                            isRBold = false;
+                        } else {
+                            STOnOff.Enum val = cTRPr.getB().getVal();
+                            isRBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+                        }
+                    }
+                }
+            }
+        }
+
+        cTRPr = run.getCTR().getRPr();
+        if (cTRPr != null) {
+            if (cTRPr.isSetB()) {
+                STOnOff.Enum val = cTRPr.getB().getVal();
+                isRBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+            }
+        }
+        return isRBold;
+    }
+
     private static class InternalTable{
         Paragraph[][][] content;
         boolean constantColumnNumber = true;
+        boolean bilingual = false;
     }
 }
