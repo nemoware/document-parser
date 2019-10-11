@@ -51,6 +51,7 @@ public class DocumentParser {
     private static Pattern ruAlphabetPattern = Pattern.compile("[А-Яа-я]{5,}");
     private static Pattern engAlphabetPattern = Pattern.compile("[A-Za-z]{5,}");
     private static Pattern styleNamePattern = Pattern.compile("title|heading|заголовок");
+    private static Pattern valuableSymbolPattern = Pattern.compile("[A-Za-zА-Яа-я]");
     final private static int maxHeaderLength = 1000;
     final private static int maxBodyLength = 100000;
     final private static int firstParagraphBodyCheckLength = 200;
@@ -78,7 +79,7 @@ public class DocumentParser {
                 int paragraphQuantity = range.numParagraphs();
                 for(int i = 0; i < paragraphQuantity; i++){
                     Paragraph paragraph = range.getParagraph(i);
-                    if(!paragraph.text().trim().isEmpty()) {
+                    if(result.getParagraphs().size() != 0 || !paragraph.text().trim().isEmpty()) {
                         if (isTableOfContent(paragraph.text())){
                             isPrevHeader = false;
                             continue;
@@ -269,7 +270,7 @@ public class DocumentParser {
     private static Pair<Boolean, com.nemo.document.parser.Paragraph>
         processXWPFParagraph(XWPFParagraph paragraph, com.nemo.document.parser.Paragraph currentParagraph,
         boolean isPrevHeader, int globalOffset, DocumentStructure result, boolean canBeHeader){
-        if (!paragraph.getText().trim().isEmpty()) {
+        if (result.getParagraphs().size() != 0 || !paragraph.getText().trim().isEmpty()) {
             if(isTableOfContent(paragraph)){
                 return new ImmutablePair<>(false, currentParagraph);
             }
@@ -503,7 +504,8 @@ public class DocumentParser {
                 if (!run.text().equals(upperCaseRun) || !matcher.find()) {
                     allCharactersCapitalized = false;
                 }
-                if (!isBold(run)) {
+                matcher = valuableSymbolPattern.matcher(run.text());
+                if (!isBold(run) && matcher.find()) {
                     allCharactersBold = false;
                 }
             }
