@@ -5,21 +5,25 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.apache.poi.hssf.usermodel.HSSFPrintSetup;
 import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.model.SEPX;
 import org.apache.poi.hwpf.model.StyleDescription;
 import org.apache.poi.hwpf.usermodel.*;
 import org.apache.poi.hwpf.usermodel.Paragraph;
 import org.apache.poi.openxml4j.util.ZipSecureFile;
+import org.apache.poi.ss.usermodel.PrintSetup;
 import org.apache.poi.xwpf.usermodel.*;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.impl.STBrTypeImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -55,19 +59,31 @@ public class DocumentParser {
     final private static int maxHeaderLength = 1000;
     final private static int maxBodyLength = 100000;
     final private static int firstParagraphBodyCheckLength = 200;
+    private static String version;
 
     static{
         ZipSecureFile.setMinInflateRatio(0.0001d);
+        MavenXpp3Reader reader = new MavenXpp3Reader();
+        try {
+            Model model = reader.read(new FileReader("pom.xml"));
+            version = model.getVersion();
+        }
+        catch (IOException | XmlPullParserException ex){
+            logger.error("project pom.xml not found or can't be parsed.", ex);
+        }
     }
 
-    public static DocumentStructure parse(String filePath) throws IOException {
+    public static MultiDocumentStructure parse(String filePath) throws IOException {
         String extension = filePath.substring(filePath.lastIndexOf(".") + 1).toUpperCase();
         return parse(new FileInputStream(new File(filePath)), DocumentFileType.valueOf(extension));
     }
 
-    public static DocumentStructure parse(InputStream inputStream, DocumentFileType documentFileType) throws IOException {
+    public static MultiDocumentStructure parse(InputStream inputStream, DocumentFileType documentFileType) throws IOException {
         long startTime = System.currentTimeMillis();
-        DocumentStructure result = new DocumentStructure();
+        MultiDocumentStructure result = new MultiDocumentStructure();
+        result.setVersion(version);
+        DocumentStructure documentResult = new DocumentStructure();
+        result.addDocument(documentResult);
         com.nemo.document.parser.Paragraph currentParagraph = null;
         boolean isPrevHeader = false;
         switch(documentFileType){
@@ -79,33 +95,45 @@ public class DocumentParser {
                 int paragraphQuantity = range.numParagraphs();
                 for(int i = 0; i < paragraphQuantity; i++){
                     Paragraph paragraph = range.getParagraph(i);
-                    if(result.getParagraphs().size() != 0 || !paragraph.text().trim().isEmpty()) {
-                        if (isTableOfContent(paragraph.text())){
+                    String paragraphText = paragraph.text().endsWith("\r") ? paragraph.text().substring(0, paragraph.text().length() - 1) :
+                            paragraph.text();
+                    if(documentResult.getParagraphs().size() != 0 || !paragraphText.trim().isEmpty()) {
+                        if (isTableOfContent(paragraphText)){
                             isPrevHeader = false;
                             continue;
                         }
 //                        StyleDescription styleDescription = doc.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
-                        if (result.getParagraphs().size() == 0 || isHeader(paragraph, doc, tables)) {
+                        if ((result.getDocuments().size() == 1 && documentResult.getParagraphs().size() == 0) ||
+                                isHeader(paragraph, doc, tables)) {
                             if (isPrevHeader) {
-                                currentParagraph.getParagraphHeader().addText(paragraph.text());
+                                currentParagraph.getParagraphHeader().addText(paragraphText);
                             } else {
                                 currentParagraph = new com.nemo.document.parser.Paragraph();
-                                result.addParagraph(currentParagraph);
-                                currentParagraph.setParagraphHeader(new TextSegment(paragraph.getStartOffset(), paragraph.text()));
+                                documentResult.addParagraph(currentParagraph);
+                                currentParagraph.setParagraphHeader(new TextSegment(paragraph.getStartOffset(), paragraphText));
                             }
                             isPrevHeader = true;
                         } else {
+                            if(documentResult.getParagraphs().size() == 0){ //page break, but no header detected
+                                documentResult = result.getDocuments().get(result.getDocuments().size() - 2);
+                                result.getDocuments().remove(result.getDocuments().size() - 1);
+                            }
                             if (currentParagraph == null) {
                                 currentParagraph = new com.nemo.document.parser.Paragraph();
-                                result.addParagraph(currentParagraph);
+                                documentResult.addParagraph(currentParagraph);
                             }
                             if (currentParagraph.getParagraphBody().getOffset() == -1) {
-                                currentParagraph.setParagraphBody(new TextSegment(paragraph.getStartOffset(), paragraph.text()));
+                                currentParagraph.setParagraphBody(new TextSegment(paragraph.getStartOffset(), paragraphText));
                             } else {
-                                currentParagraph.getParagraphBody().addText(paragraph.text());
+                                currentParagraph.getParagraphBody().addText(paragraphText);
                             }
                             isPrevHeader = false;
                         }
+                    }
+                    if(documentResult.getParagraphs().size() != 0 && (paragraph.pageBreakBefore() || paragraphText.contains("\f"))){
+                        documentResult = new DocumentStructure();
+                        result.addDocument(documentResult);
+                        isPrevHeader = false;
                     }
                 }
                 break;
@@ -123,84 +151,106 @@ public class DocumentParser {
                 break;
         }
         checkDocumentStructure(result);
-        if(result.getParagraphs().size() > 0){
-            com.nemo.document.parser.Paragraph firstParagraph = result.getParagraphs().get(0);
-            result.setDocumentType(findDocumentType(firstParagraph));
-            result.setDocumentDate(findDocumentDate(firstParagraph));
-            if(result.getDocumentType() != DocumentType.CHARTER) {
-                result.setDocumentNumber(findDocumentNumber(firstParagraph));
+        for(DocumentStructure documentStructure : result.getDocuments()) {
+            if (documentStructure.getParagraphs().size() > 0) {
+                documentStructure.setDocumentType(findDocumentType(documentStructure));
+                documentStructure.setDocumentDate(findDocumentDate(documentStructure));
+                if (documentStructure.getDocumentType() != DocumentType.CHARTER) {
+                    documentStructure.setDocumentNumber(findDocumentNumber(documentStructure));
+                }
             }
         }
         logger.info("Document processed successfully. Time spent {}ms", System.currentTimeMillis() - startTime);
         return result;
     }
 
-    private static void checkDocumentStructure(DocumentStructure documentStructure){
-        for(int i = 0; i < documentStructure.getParagraphs().size(); i++){
-            com.nemo.document.parser.Paragraph paragraph = documentStructure.getParagraphs().get(i);
-            if(paragraph.getParagraphHeader().getLength() > maxHeaderLength){
-                String longHeader =  paragraph.getParagraphHeader().getText();
-                Pattern pattern = Pattern.compile("\r|\n");
-                Matcher matcher = pattern.matcher(longHeader);
-                if(matcher.find()){
-                    String shortHeader = longHeader.substring(0, matcher.start());
-                    String newBody = longHeader.substring(matcher.start()) + paragraph.getParagraphBody().getText();
-                    paragraph.setParagraphHeader(new TextSegment(paragraph.getParagraphHeader().getOffset(), shortHeader));
-                    paragraph.setParagraphBody(new TextSegment(paragraph.getParagraphHeader().getOffset() + paragraph.getParagraphHeader().getLength(),
-                            newBody));
-                }
-                else{
-                    logger.warn("Paragraph header is too large. Paragraph number={}, header length={}", i, paragraph.getParagraphBody().getLength());
-                }
+    private static void checkDocumentStructure(MultiDocumentStructure multiDoc){
+        for(Iterator<DocumentStructure> iterator = multiDoc.getDocuments().iterator(); iterator.hasNext();) {
+            DocumentStructure documentStructure = iterator.next();
+            if(documentStructure.getParagraphs().size() == 0){
+                iterator.remove();
+                continue;
             }
-            if(paragraph.getParagraphBody().getLength() > maxBodyLength){
-                logger.warn("Paragraph body is too large. Paragraph number={}, body length={}", i, paragraph.getParagraphBody().getLength());
+            for (int i = 0; i < documentStructure.getParagraphs().size(); i++) {
+                com.nemo.document.parser.Paragraph paragraph = documentStructure.getParagraphs().get(i);
+                if (paragraph.getParagraphHeader().getLength() > maxHeaderLength) {
+                    String longHeader = paragraph.getParagraphHeader().getText();
+                    Pattern pattern = Pattern.compile("\r|\n");
+                    Matcher matcher = pattern.matcher(longHeader);
+                    if (matcher.find()) {
+                        String shortHeader = longHeader.substring(0, matcher.start());
+                        String newBody = longHeader.substring(matcher.start()) + paragraph.getParagraphBody().getText();
+                        paragraph.setParagraphHeader(new TextSegment(paragraph.getParagraphHeader().getOffset(), shortHeader));
+                        paragraph.setParagraphBody(new TextSegment(paragraph.getParagraphHeader().getOffset() + paragraph.getParagraphHeader().getLength(),
+                                newBody));
+                    } else {
+                        logger.warn("Paragraph header is too large. Paragraph number={}, header length={}", i, paragraph.getParagraphBody().getLength());
+                    }
+                }
+                if (paragraph.getParagraphBody().getLength() > maxBodyLength) {
+                    logger.warn("Paragraph body is too large. Paragraph number={}, body length={}", i, paragraph.getParagraphBody().getLength());
+                }
             }
         }
     }
 
-    private static String findDocumentNumber(com.nemo.document.parser.Paragraph firstParagraph){
+    private static String findDocumentNumber(DocumentStructure document){
         String result = "";
-        if(firstParagraph.getParagraphHeader() != null) {
-            Matcher matcher = documentNumberPattern.matcher(firstParagraph.getParagraphHeader().getText());
-            if(matcher.find()){
-                result = matcher.group("number");
+        for(com.nemo.document.parser.Paragraph paragraph : document.getParagraphs()) {
+            if (paragraph.getParagraphHeader() != null) {
+                Matcher matcher = documentNumberPattern.matcher(paragraph.getParagraphHeader().getText());
+                if (matcher.find()) {
+                    result = matcher.group("number");
+                }
+            }
+            if(!result.isEmpty() || paragraph.getParagraphBody().getLength() != 0){
+                break;
             }
         }
         return result;
     }
 
-    private static LocalDate findDocumentDate(com.nemo.document.parser.Paragraph firstParagraph){
-        if(firstParagraph.getParagraphHeader() != null) {
-            String firstHeader = firstParagraph.getParagraphHeader().getText();
-            Matcher matcher = datePattern.matcher(firstHeader.toLowerCase());
-            if (matcher.find()) {
-                return parseDate(matcher);
-            }
-            else {
-                if (firstParagraph.getParagraphBody() != null) {
-                    String firstParagraphBody = firstParagraph.getParagraphBody().getText()
-                            .substring(0, Math.min(firstParagraphBodyCheckLength, firstParagraph.getParagraphBody().getLength()));
-                    matcher = datePattern.matcher(firstParagraphBody.toLowerCase());
-                    if (matcher.find()) {
-                        return parseDate(matcher);
+    private static LocalDate findDocumentDate(DocumentStructure document){
+        LocalDate result = null;
+        for(com.nemo.document.parser.Paragraph paragraph : document.getParagraphs()) {
+            if (paragraph.getParagraphHeader() != null) {
+                String firstHeader = paragraph.getParagraphHeader().getText();
+                Matcher matcher = datePattern.matcher(firstHeader.toLowerCase());
+                if (matcher.find()) {
+                    result = parseDate(matcher);
+                } else {
+                    if (paragraph.getParagraphBody() != null) {
+                        String firstParagraphBody = paragraph.getParagraphBody().getText()
+                                .substring(0, Math.min(firstParagraphBodyCheckLength, paragraph.getParagraphBody().getLength()));
+                        matcher = datePattern.matcher(firstParagraphBody.toLowerCase());
+                        if (matcher.find()) {
+                            result = parseDate(matcher);
+                        }
                     }
                 }
             }
+            if(result != null || paragraph.getParagraphBody().getLength() != 0){
+                break;
+            }
         }
-        return null;
+        return result;
     }
 
-    private static DocumentType findDocumentType(com.nemo.document.parser.Paragraph firstParagraph){
+    private static DocumentType findDocumentType(DocumentStructure document){
         DocumentType result = DocumentType.UNKNOWN;
-        if(firstParagraph.getParagraphHeader() != null) {
-            int firstOccurrence = firstParagraph.getParagraphHeader().getLength();
-            for(AbstractMap.Entry<String, DocumentType> entry : keyToDocType.entrySet()){
-                int idx = StringUtils.indexOfIgnoreCase(firstParagraph.getParagraphHeader().getText(), entry.getKey());
-                if(idx >= 0 && firstOccurrence > idx){
-                    result = entry.getValue();
-                    firstOccurrence = idx;
+        for(com.nemo.document.parser.Paragraph paragraph : document.getParagraphs()) {
+            if (paragraph.getParagraphHeader() != null) {
+                int firstOccurrence = paragraph.getParagraphHeader().getLength();
+                for (AbstractMap.Entry<String, DocumentType> entry : keyToDocType.entrySet()) {
+                    int idx = StringUtils.indexOfIgnoreCase(paragraph.getParagraphHeader().getText(), entry.getKey());
+                    if (idx >= 0 && firstOccurrence > idx) {
+                        result = entry.getValue();
+                        firstOccurrence = idx;
+                    }
                 }
+            }
+            if(result != DocumentType.UNKNOWN || paragraph.getParagraphBody().getLength() != 0){
+                break;
             }
         }
         return result;
@@ -208,7 +258,8 @@ public class DocumentParser {
 
     private static Triple<Boolean, com.nemo.document.parser.Paragraph, Integer>
         processBodyElement(IBodyElement element, com.nemo.document.parser.Paragraph currentParagraph, boolean isPrevHeader,
-                       int globalOffset, DocumentStructure result, boolean canBeHeader){
+                       int globalOffset, MultiDocumentStructure result, boolean canBeHeader){
+        DocumentStructure documentStructure = result.getDocuments().get(result.getDocuments().size() - 1);
         if(element.getElementType() == BodyElementType.CONTENTCONTROL){
             return new ImmutableTriple<>(isPrevHeader, currentParagraph, globalOffset);
         }
@@ -251,7 +302,7 @@ public class DocumentParser {
                         isPrevHeader = elementResult.getLeft();
                         currentParagraph = elementResult.getMiddle();
                         globalOffset = elementResult.getRight();
-                        canBeHeader = isPrevHeader || result.getParagraphs().size() == 0;
+                        canBeHeader = isPrevHeader || documentStructure.getParagraphs().size() == 0;
                     }
                 }
             }
@@ -269,24 +320,35 @@ public class DocumentParser {
 
     private static Pair<Boolean, com.nemo.document.parser.Paragraph>
         processXWPFParagraph(XWPFParagraph paragraph, com.nemo.document.parser.Paragraph currentParagraph,
-        boolean isPrevHeader, int globalOffset, DocumentStructure result, boolean canBeHeader){
-        if (result.getParagraphs().size() != 0 || !paragraph.getText().trim().isEmpty()) {
+        boolean isPrevHeader, int globalOffset, MultiDocumentStructure result, boolean canBeHeader){
+        DocumentStructure documentStructure = result.getDocuments().get(result.getDocuments().size() - 1);
+        if(documentStructure.getParagraphs().size() != 0 && isPageBreak(paragraph)){
+            documentStructure = new DocumentStructure();
+            result.addDocument(documentStructure);
+            isPrevHeader = false;
+        }
+        if (documentStructure.getParagraphs().size() != 0 || !paragraph.getText().trim().isEmpty()) {
             if(isTableOfContent(paragraph)){
                 return new ImmutablePair<>(false, currentParagraph);
             }
-            if (result.getParagraphs().size() == 0 || (canBeHeader && isHeader(paragraph, null))) {
+            if ((result.getDocuments().size() == 1 && documentStructure.getParagraphs().size() == 0) ||
+                    (canBeHeader && isHeader(paragraph, null))) {
                 if (isPrevHeader) {
                     currentParagraph.getParagraphHeader().addText(paragraph.getText());
                 } else {
                     currentParagraph = new com.nemo.document.parser.Paragraph();
-                    result.addParagraph(currentParagraph);
+                    documentStructure.addParagraph(currentParagraph);
                     currentParagraph.setParagraphHeader(new TextSegment(globalOffset, paragraph.getText()));
                 }
                 return new ImmutablePair<>(true, currentParagraph);
             } else {
+                if(documentStructure.getParagraphs().size() == 0){ //page break, but no header detected
+                    documentStructure = result.getDocuments().get(result.getDocuments().size() - 2);
+                    result.getDocuments().remove(result.getDocuments().size() - 1);
+                }
                 if (currentParagraph == null) {
                     currentParagraph = new com.nemo.document.parser.Paragraph();
-                    result.addParagraph(currentParagraph);
+                    documentStructure.addParagraph(currentParagraph);
                 }
                 if (currentParagraph.getParagraphBody().getOffset() == -1) {
                     currentParagraph.setParagraphBody(new TextSegment(globalOffset, paragraph.getText()));
@@ -297,6 +359,24 @@ public class DocumentParser {
             }
         }
         return new ImmutablePair<>(isPrevHeader, currentParagraph);
+    }
+
+    private static boolean isPageBreak(XWPFParagraph paragraph){
+        if(paragraph.isPageBreak()){
+            return true;
+        }
+        if(paragraph.getCTP().getPPr() != null && paragraph.getCTP().getPPr().getSectPr() != null &&
+                paragraph.getCTP().getPPr().getSectPr().isSetPgSz()){
+            return true;
+        }
+        for(XWPFRun run : paragraph.getRuns()){
+            for(CTBr ctbr : run.getCTR().getBrList()){
+                if(ctbr.getType() != null && ctbr.getType().intValue() == STBrType.PAGE.intValue()){
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean isTableOfContent(String paragraphText){
@@ -426,7 +506,7 @@ public class DocumentParser {
 
         int alignment = paragraph.getFontAlignment();
         int justification = paragraph.getJustification();
-        if(alignment == 3 || justification == 1){
+        if(alignment == 3 || justification == 1 || justification == 2){
             return true;
         }
         int characterRunQuantity = paragraph.numCharacterRuns();

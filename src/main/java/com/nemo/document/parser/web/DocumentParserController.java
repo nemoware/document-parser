@@ -2,6 +2,7 @@ package com.nemo.document.parser.web;
 
 import com.nemo.document.parser.DocumentStructure;
 import com.nemo.document.parser.DocumentParser;
+import com.nemo.document.parser.MultiDocumentStructure;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +23,7 @@ public class DocumentParserController {
 
     @GetMapping("/document-parser")
     @ResponseBody
-    public DocumentStructure getDocumentStructureByPath(@RequestParam(name="filePath") String filePath) {
+    public MultiDocumentStructure getDocumentStructureByPath(@RequestParam(name="filePath") String filePath) {
         String fullPath = new File(fileRootPath, filePath).getAbsolutePath();
         try {
             return DocumentParser.parse(fullPath);
@@ -35,7 +36,7 @@ public class DocumentParserController {
 
     @PostMapping("/document-parser")
     @ResponseBody
-    public DocumentStructure getDocumentStructureByContent(@RequestBody DocumentParserRequest request){
+    public MultiDocumentStructure getDocumentStructureByContent(@RequestBody DocumentParserRequest request){
         byte[] decodedBytes = Base64.getDecoder().decode(request.getBase64Content());
         try {
             return DocumentParser.parse(new ByteArrayInputStream(decodedBytes), request.getDocumentFileType());

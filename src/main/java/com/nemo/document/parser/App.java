@@ -30,11 +30,11 @@ public class App
                 String filePath = line.getOptionValue("i");
                 ch.qos.logback.classic.Logger rootLogger = (ch.qos.logback.classic.Logger)LoggerFactory.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME);
                 rootLogger.setLevel(Level.toLevel("error"));
-                DocumentStructure documentStructure = DocumentParser.parse(filePath);
+                MultiDocumentStructure multiDocumentStructure = DocumentParser.parse(filePath);
                 ObjectMapper mapper = new ObjectMapper();
                 DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
                 mapper.setDateFormat(df);
-                String json = mapper.writeValueAsString(documentStructure);
+                String json = mapper.writeValueAsString(multiDocumentStructure);
                 System.out.println(json);
             }
             catch (Throwable th){
