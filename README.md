@@ -21,18 +21,21 @@ root.file.path - корневая папка с документами
 POST к /document-parser
 
 Headers:
+```
 Content-type: application/json
-
+```
 Body:
+```
 {
   "base64Content": "..."
   "documentFileType": "<DOCX или DOC>"
 }
+```
 
 GET к /document-parser?filePath=<относительный путь от корневой папки с документами к файлу>
 
 ### CLI
-Для запуска консольной версии надо распаковать document-parser-1.0.1-distribution.zip
+Для запуска консольной версии надо распаковать `document-parser-<version>-distribution.zip` ( https://github.com/nemoware/document-parser/releases/latest )
 и из распакованной директории запустить 
 
 - под Windows: `java -cp classes;lib/* com.nemo.document.parser.App -i <путь к файлу>`
