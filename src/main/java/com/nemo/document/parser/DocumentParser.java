@@ -64,8 +64,13 @@ public class DocumentParser {
     static{
         ZipSecureFile.setMinInflateRatio(0.0001d);
         MavenXpp3Reader reader = new MavenXpp3Reader();
+        Model model;
         try {
-            Model model = reader.read(new FileReader("pom.xml"));
+            if ((new File("pom.xml")).exists())
+                model = reader.read(new FileReader("pom.xml"));
+            else
+                model = reader.read(new InputStreamReader(DocumentParser.class.getResourceAsStream(
+                                        "/META-INF/maven/com.nemo.document.audit/document-parser/pom.xml")));
             version = model.getVersion();
         }
         catch (IOException | XmlPullParserException ex){
