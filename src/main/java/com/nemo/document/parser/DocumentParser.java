@@ -629,16 +629,16 @@ public class DocumentParser {
         List<XWPFRun> runs = paragraph.getRuns();
         boolean allCharactersBold = true;
         boolean allCharactersCapitalized = true;
+        String upperCaseParagraph = paragraph.getText().toUpperCase();
+        matcher = alphabetUpperCasePattern.matcher(upperCaseParagraph);
+        if (!paragraph.getText().equals(upperCaseParagraph) || !matcher.find()) {
+            allCharactersCapitalized = false;
+        }
         for(XWPFRun run : runs) {
             if(!allCharactersBold && !allCharactersCapitalized){
                 break;
             }
             if(!run.text().trim().isEmpty()) {
-                String upperCaseRun = run.text().toUpperCase();
-                matcher = alphabetUpperCasePattern.matcher(upperCaseRun);
-                if (!run.text().equals(upperCaseRun) || !matcher.find()) {
-                    allCharactersCapitalized = false;
-                }
                 matcher = valuableSymbolPattern.matcher(run.text());
                 if (!isBold(run) && matcher.find()) {
                     allCharactersBold = false;
