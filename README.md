@@ -80,6 +80,6 @@ example: https://github.com/compartia/nlp_tools/blob/master/notebooks/Test_docum
     }
     ...
   ],
-  "version": "1.1.2"
+  "version": "1.1.2"//версия document-parser
 }
 ```
