@@ -13,6 +13,8 @@ public class DocumentStructure {
     private LocalDate documentDate;
     private DocumentType documentType = DocumentType.UNKNOWN;
     private String documentNumber = "";
+    private TextSegment documentDateSegment;
+    private TextSegment documentNumberSegment;
 
     private List<Paragraph> paragraphs = new ArrayList<>();
 
@@ -47,5 +49,21 @@ public class DocumentStructure {
 
     public void setDocumentNumber(String documentNumber) {
         this.documentNumber = documentNumber;
+    }
+
+    public TextSegment getDocumentDateSegment() {
+        return documentDateSegment;
+    }
+
+    public void setDocumentDateSegment(TextSegment documentDateSegment) {
+        this.documentDateSegment = documentDateSegment;
+    }
+
+    public TextSegment getDocumentNumberSegment() {
+        return documentNumberSegment;
+    }
+
+    public void setDocumentNumberSegment(TextSegment documentNumberSegment) {
+        this.documentNumberSegment = documentNumberSegment;
     }
 }

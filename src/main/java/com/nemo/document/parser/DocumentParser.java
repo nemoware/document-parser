@@ -201,28 +201,43 @@ public class DocumentParser {
 
     private static String findDocumentNumber(DocumentStructure document){
         String result = "";
+        int offset = 0;
+        String text = "";
         for(com.nemo.document.parser.Paragraph paragraph : document.getParagraphs()) {
             if (paragraph.getParagraphHeader() != null) {
                 Matcher matcher = documentNumberPattern.matcher(paragraph.getParagraphHeader().getText());
                 if (matcher.find()) {
                     result = matcher.group("number");
+                    offset += matcher.start();
+                    text = matcher.group();
                 }
             }
             if(!result.isEmpty() || paragraph.getParagraphBody().getLength() != 0){
                 break;
             }
+            else{
+                offset += paragraph.getParagraphBody().getLength() + paragraph.getParagraphHeader().getLength();
+            }
         }
+        if(result.isEmpty()){
+            offset = -1;
+        }
+        document.setDocumentNumberSegment(new TextSegment(offset, text));
         return result;
     }
 
     private static LocalDate findDocumentDate(DocumentStructure document){
         LocalDate result = null;
+        int offset = 0;
+        String text = "";
         for(com.nemo.document.parser.Paragraph paragraph : document.getParagraphs()) {
             if (paragraph.getParagraphHeader() != null) {
                 String firstHeader = paragraph.getParagraphHeader().getText();
                 Matcher matcher = datePattern.matcher(firstHeader.toLowerCase());
                 if (matcher.find()) {
                     result = parseDate(matcher);
+                    offset += matcher.start();
+                    text = matcher.group();
                 } else {
                     if (paragraph.getParagraphBody() != null) {
                         String firstParagraphBody = paragraph.getParagraphBody().getText()
@@ -230,6 +245,8 @@ public class DocumentParser {
                         matcher = datePattern.matcher(firstParagraphBody.toLowerCase());
                         if (matcher.find()) {
                             result = parseDate(matcher);
+                            offset += matcher.start();
+                            text = matcher.group();
                         }
                     }
                 }
@@ -237,7 +254,14 @@ public class DocumentParser {
             if(result != null || paragraph.getParagraphBody().getLength() != 0){
                 break;
             }
+            else{
+                offset += paragraph.getParagraphBody().getLength() + paragraph.getParagraphHeader().getLength();
+            }
         }
+        if(result == null){
+            offset = -1;
+        }
+        document.setDocumentDateSegment(new TextSegment(offset, text));
         return result;
     }
 
