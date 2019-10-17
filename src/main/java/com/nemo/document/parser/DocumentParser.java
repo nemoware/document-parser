@@ -99,6 +99,21 @@ public class DocumentParser {
                         Paragraph paragraph = range.getParagraph(i);
                         String paragraphText = paragraph.text().endsWith("\r") ? paragraph.text().substring(0, paragraph.text().length() - 1) :
                                 paragraph.text();
+                        if (documentResult.getParagraphs().size() != 0 && isSubDocument(paragraph, tables)) {
+//                            int idx = paragraph.text().lastIndexOf("\f");
+//                            if(idx > 0 && paragraphText.length() != 0 && currentParagraph != null){
+//                                String fromPreviousParagraph = paragraph.text().substring(0, idx);
+//                                if(currentParagraph.getParagraphBody().getLength() != 0) {
+//                                    currentParagraph.getParagraphBody().addText(fromPreviousParagraph);
+//                                }
+//                                else{
+//                                    currentParagraph.getParagraphHeader().addText(fromPreviousParagraph);
+//                                }
+//                            }
+                            documentResult = new DocumentStructure();
+                            result.addDocument(documentResult);
+                            isPrevHeader = false;
+                        }
                         if (documentResult.getParagraphs().size() != 0 || !paragraphText.trim().isEmpty()) {
                             if (isTableOfContent(paragraphText)) {
                                 isPrevHeader = false;
@@ -131,11 +146,6 @@ public class DocumentParser {
                                 }
                                 isPrevHeader = false;
                             }
-                        }
-                        if (documentResult.getParagraphs().size() != 0 && isSubDocument(paragraph, tables)) {
-                            documentResult = new DocumentStructure();
-                            result.addDocument(documentResult);
-                            isPrevHeader = false;
                         }
                     }
                     break;
@@ -394,9 +404,9 @@ public class DocumentParser {
     }
 
     private static boolean isSubDocument(Paragraph paragraph, List<InternalTable> tables){
-        if(paragraph.pageBreakBefore() || paragraph.text().contains("\f")){
-            return true;
-        }
+//        if(paragraph.pageBreakBefore() || (paragraph.text().contains("\f") && !paragraph.text().contains("FORM"))){
+//            return true;
+//        }
         if(isHeader(paragraph, tables)){
             String lowerCaseText = paragraph.text().toLowerCase();
             for(String possibleSubDocHeader : possibleSubDocuments){
@@ -409,20 +419,20 @@ public class DocumentParser {
     }
 
     private static boolean isSubDocument(XWPFParagraph paragraph){
-        if(paragraph.isPageBreak()){
-            return true;
-        }
-        if(paragraph.getCTP().getPPr() != null && paragraph.getCTP().getPPr().getSectPr() != null &&
-                paragraph.getCTP().getPPr().getSectPr().isSetPgSz()){
-            return true;
-        }
-        for(XWPFRun run : paragraph.getRuns()){
-            for(CTBr ctbr : run.getCTR().getBrList()){
-                if(ctbr.getType() != null && ctbr.getType().intValue() == STBrType.PAGE.intValue()){
-                    return true;
-                }
-            }
-        }
+//        if(paragraph.isPageBreak()){
+//            return true;
+//        }
+//        if(paragraph.getCTP().getPPr() != null && paragraph.getCTP().getPPr().getSectPr() != null &&
+//                paragraph.getCTP().getPPr().getSectPr().isSetPgSz()){
+//            return true;
+//        }
+//        for(XWPFRun run : paragraph.getRuns()){
+//            for(CTBr ctbr : run.getCTR().getBrList()){
+//                if(ctbr.getType() != null && ctbr.getType().intValue() == STBrType.PAGE.intValue()){
+//                    return true;
+//                }
+//            }
+//        }
         if(isHeader(paragraph, null)){
             String lowerCaseText = paragraph.getText().toLowerCase();
             for(String possibleSubDocHeader : possibleSubDocuments){
