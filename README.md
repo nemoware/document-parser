@@ -18,7 +18,7 @@ root.file.path - корневая папка с документами
 
 ## Run
 ### Web service
-Запускать сервис: java -jar document-parser-<version>.jar
+Запускать сервис: `java -jar document-parser-<version>.jar`
 
 сервис умеет:
 POST к /document-parser
