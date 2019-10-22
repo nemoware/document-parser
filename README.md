@@ -28,7 +28,7 @@ Headers:
 Content-type: application/json
 ```
 Body:
-```
+```javascript
 {
   "base64Content": "..."
   "documentFileType": "<DOCX или DOC>"
@@ -49,7 +49,7 @@ example: https://github.com/compartia/nlp_tools/blob/master/notebooks/Test_docum
 
 ## Описание выходного json
 
-```
+```javascript
 {
   "documents":[//массив документов, первый основной, остальные(если есть в файле) связанные с ним суб-документы.
     {
