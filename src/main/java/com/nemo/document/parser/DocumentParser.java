@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 public class DocumentParser {
     private static String dateRegEx = "(?<day>[1-2][0-9]|3[01]|0?[1-9]).\\s*(?<month>1[0-2]|0[1-9]|января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря).\\s*(?<year>[1-2]\\d{3})";
     private static Pattern datePattern = Pattern.compile(dateRegEx, Pattern.CASE_INSENSITIVE);
-    private static Pattern documentNumberPattern = Pattern.compile("№\\s*(?<number>\\S+)(\\s+|$)");
+    private static Pattern documentNumberPattern = Pattern.compile("№[ \\t]*(?<number>\\S+)(\\s+|$)");
     private static Logger logger = LoggerFactory.getLogger(DocumentParser.class);
     private static     String[] shortMonths = {
             "янв", "фев", "мар", "апр", "ма", "июн",
