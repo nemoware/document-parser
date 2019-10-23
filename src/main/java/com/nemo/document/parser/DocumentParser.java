@@ -74,6 +74,10 @@ public class DocumentParser {
         }
     }
 
+    public static String getVersion(){
+        return version;
+    }
+
     public static MultiDocumentStructure parse(String filePath) throws IOException {
         String extension = filePath.substring(filePath.lastIndexOf(".") + 1).toUpperCase();
         return parse(new FileInputStream(new File(filePath)), DocumentFileType.valueOf(extension));
