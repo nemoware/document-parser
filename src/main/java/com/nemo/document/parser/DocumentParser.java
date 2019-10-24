@@ -44,7 +44,7 @@ public class DocumentParser {
             new AbstractMap.SimpleEntry<>(Pattern.compile("утвержден(\\s|$)"), DocumentType.CHARTER)
     );
 
-    private static List<String> possibleSubDocuments = List.of("приложение");
+    private static List<Pattern> possibleSubDocuments = List.of(Pattern.compile("^\\s*приложение"));
     private static Pattern tableOfContentDocPattern = Pattern.compile("PAGEREF _Toc\\d+");
     private static Pattern alphabetPattern = Pattern.compile("[A-Za-zА-Яа-я0-9]{5,}");
     private static Pattern alphabetUpperCasePattern = Pattern.compile("[A-ZА-Я]{5,}");
@@ -254,6 +254,7 @@ public class DocumentParser {
                     offset += matcher.start();
                     text = matcher.group();
                 } else {
+                    offset += paragraph.getParagraphHeader().getLength();
                     if (paragraph.getParagraphBody() != null) {
                         String firstParagraphBody = paragraph.getParagraphBody().getText()
                                 .substring(0, Math.min(firstParagraphBodyCheckLength, paragraph.getParagraphBody().getLength()));
@@ -270,7 +271,7 @@ public class DocumentParser {
                 break;
             }
             else{
-                offset += paragraph.getParagraphBody().getLength() + paragraph.getParagraphHeader().getLength();
+                offset += paragraph.getParagraphBody().getLength();
             }
         }
         if(result == null){
@@ -413,8 +414,9 @@ public class DocumentParser {
 //        }
         if(isHeader(paragraph, tables)){
             String lowerCaseText = paragraph.text().toLowerCase();
-            for(String possibleSubDocHeader : possibleSubDocuments){
-                if(lowerCaseText.contains(possibleSubDocHeader)){
+            for(Pattern possibleSubDocHeader : possibleSubDocuments){
+                Matcher matcher = possibleSubDocHeader.matcher(lowerCaseText);
+                if(matcher.find()){
                     return true;
                 }
             }
@@ -439,8 +441,9 @@ public class DocumentParser {
 //        }
         if(isHeader(paragraph, null)){
             String lowerCaseText = paragraph.getText().toLowerCase();
-            for(String possibleSubDocHeader : possibleSubDocuments){
-                if(lowerCaseText.contains(possibleSubDocHeader)){
+            for(Pattern possibleSubDocHeader : possibleSubDocuments){
+                Matcher matcher = possibleSubDocHeader.matcher(lowerCaseText);
+                if(matcher.find()){
                     return true;
                 }
             }
@@ -631,7 +634,9 @@ public class DocumentParser {
                     paragraphBold = false;
                 } else {
                     STOnOff.Enum val = cTRPr.getB().getVal();
-                    paragraphBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+                    if(val != null) {
+                        paragraphBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+                    }
                 }
             }
 
@@ -677,7 +682,9 @@ public class DocumentParser {
                             isRBold = false;
                         } else {
                             STOnOff.Enum val = cTRPr.getB().getVal();
-                            isRBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+                            if(val != null) {
+                                isRBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+                            }
                         }
                     }
                 }
@@ -688,7 +695,9 @@ public class DocumentParser {
         if (cTRPr != null) {
             if (cTRPr.isSetB()) {
                 STOnOff.Enum val = cTRPr.getB().getVal();
-                isRBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+                if(val != null) {
+                    isRBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+                }
             }
         }
         return isRBold;
