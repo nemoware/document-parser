@@ -446,6 +446,9 @@ public class DocumentParser {
                 }
                 else {
                     paragraphPrefix = paragraph.getNumLevelText();
+                    if(paragraphPrefix == null){
+                        paragraphPrefix = "";
+                    }
                     ListNumber listNumber = rootListNumber;
                     for (int i = 1; i <= currentListNumber.getLevel() + 1; i++) {
                         paragraphPrefix = paragraphPrefix.replace("%" + i, Integer.toString(listNumber.getNumber()));
@@ -485,11 +488,11 @@ public class DocumentParser {
 
     private static int getStartNumber(XWPFParagraph paragraph){
         XWPFNumbering numbering = paragraph.getDocument().getNumbering();
-        if (numbering != null) {
+        if (numbering != null && paragraph.getNumID() != null) {
             XWPFAbstractNum abstractNum = numbering.getAbstractNum(numbering.getAbstractNumID(paragraph.getNumID()));
-            if(abstractNum != null){
+            if(abstractNum != null && abstractNum.getCTAbstractNum() != null && paragraph.getNumIlvl() != null){
                 CTLvl lvl = abstractNum.getCTAbstractNum().getLvlArray(paragraph.getNumIlvl().intValue());
-                if(lvl != null){
+                if(lvl != null && lvl.getStart() != null && lvl.getStart().getVal() != null){
                     return lvl.getStart().getVal().intValue();
                 }
             }
