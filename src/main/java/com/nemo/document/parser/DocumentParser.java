@@ -487,15 +487,20 @@ public class DocumentParser {
     }
 
     private static int getStartNumber(XWPFParagraph paragraph){
-        XWPFNumbering numbering = paragraph.getDocument().getNumbering();
-        if (numbering != null && paragraph.getNumID() != null) {
-            XWPFAbstractNum abstractNum = numbering.getAbstractNum(numbering.getAbstractNumID(paragraph.getNumID()));
-            if(abstractNum != null && abstractNum.getCTAbstractNum() != null && paragraph.getNumIlvl() != null){
-                CTLvl lvl = abstractNum.getCTAbstractNum().getLvlArray(paragraph.getNumIlvl().intValue());
-                if(lvl != null && lvl.getStart() != null && lvl.getStart().getVal() != null){
-                    return lvl.getStart().getVal().intValue();
+        try {
+            XWPFNumbering numbering = paragraph.getDocument().getNumbering();
+            if (numbering != null && paragraph.getNumID() != null) {
+                XWPFAbstractNum abstractNum = numbering.getAbstractNum(numbering.getAbstractNumID(paragraph.getNumID()));
+                if (abstractNum != null && abstractNum.getCTAbstractNum() != null && paragraph.getNumIlvl() != null) {
+                    CTLvl lvl = abstractNum.getCTAbstractNum().getLvlArray(paragraph.getNumIlvl().intValue());
+                    if (lvl != null && lvl.getStart() != null && lvl.getStart().getVal() != null) {
+                        return lvl.getStart().getVal().intValue();
+                    }
                 }
             }
+        }
+        catch (Exception ex){
+            return -1;
         }
         return -1;
     }

@@ -23,26 +23,21 @@ public class DocumentParserController {
 
     @GetMapping("/document-parser")
     @ResponseBody
-    public MultiDocumentStructure getDocumentStructureByPath(@RequestParam(name="filePath") String filePath) {
+    public MultiDocumentStructure getDocumentStructureByPath(@RequestParam(name="filePath") String filePath) throws IOException {
         String fullPath = new File(fileRootPath, filePath).getAbsolutePath();
-        try {
+//        try {
             return DocumentParser.parse(fullPath);
-        }
-        catch(IOException ex){
-            logger.error("File=" + fullPath + " not found.");
-            throw new RuntimeException(ex);
-        }
+//        }
+//        catch(IOException ex){
+//            logger.error("File=" + fullPath + " not found.");
+//            throw new RuntimeException("error");
+//        }
     }
 
     @PostMapping("/document-parser")
     @ResponseBody
-    public MultiDocumentStructure getDocumentStructureByContent(@RequestBody DocumentParserRequest request){
+    public MultiDocumentStructure getDocumentStructureByContent(@RequestBody DocumentParserRequest request) throws IOException{
         byte[] decodedBytes = Base64.getDecoder().decode(request.getBase64Content());
-        try {
-            return DocumentParser.parse(new ByteArrayInputStream(decodedBytes), request.getDocumentFileType());
-        }
-        catch(IOException ex){
-            throw new RuntimeException(ex);
-        }
+        return DocumentParser.parse(new ByteArrayInputStream(decodedBytes), request.getDocumentFileType());
     }
 }
