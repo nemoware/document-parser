@@ -107,7 +107,7 @@ public class DocumentParser {
                         Paragraph paragraph = range.getParagraph(i);
                         String paragraphText = paragraph.text().endsWith("\r") ? paragraph.text().substring(0, paragraph.text().length() - 1) :
                                 paragraph.text();
-                        if (documentResult.getParagraphs().size() != 0 && isSubDocument(paragraph, tables)) {
+                        if (isSubDocument(paragraph, tables, documentResult)) {
 //                            int idx = paragraph.text().lastIndexOf("\f");
 //                            if(idx > 0 && paragraphText.length() != 0 && currentParagraph != null){
 //                                String fromPreviousParagraph = paragraph.text().substring(0, idx);
@@ -411,7 +411,7 @@ public class DocumentParser {
         processXWPFParagraph(XWPFParagraph paragraph, com.nemo.document.parser.Paragraph currentParagraph,
         boolean isPrevHeader, int globalOffset, MultiDocumentStructure result, boolean canBeHeader, Map<Integer, ListNumber> listNumbers){
         DocumentStructure documentStructure = result.getDocuments().get(result.getDocuments().size() - 1);
-        if(documentStructure.getParagraphs().size() != 0 && isSubDocument(paragraph)){
+        if(isSubDocument(paragraph, documentStructure)){
             documentStructure = new DocumentStructure();
             result.addDocument(documentStructure);
             isPrevHeader = false;
@@ -505,11 +505,13 @@ public class DocumentParser {
         return -1;
     }
 
-    private static boolean isSubDocument(Paragraph paragraph, List<InternalTable> tables){
+    private static boolean isSubDocument(Paragraph paragraph, List<InternalTable> tables, DocumentStructure documentStructure){
 //        if(paragraph.pageBreakBefore() || (paragraph.text().contains("\f") && !paragraph.text().contains("FORM"))){
 //            return true;
 //        }
-        if(isHeader(paragraph, tables)){
+        if(documentStructure.getParagraphs().size() != 0 &&
+                documentStructure.getParagraphs().get(0).getParagraphBody().getText().trim().length() > 0 &&
+                isHeader(paragraph, tables)){
             String lowerCaseText = paragraph.text().toLowerCase();
             for(Pattern possibleSubDocHeader : possibleSubDocuments){
                 Matcher matcher = possibleSubDocHeader.matcher(lowerCaseText);
@@ -521,7 +523,7 @@ public class DocumentParser {
         return false;
     }
 
-    private static boolean isSubDocument(XWPFParagraph paragraph){
+    private static boolean isSubDocument(XWPFParagraph paragraph, DocumentStructure documentStructure){
 //        if(paragraph.isPageBreak()){
 //            return true;
 //        }
@@ -536,7 +538,9 @@ public class DocumentParser {
 //                }
 //            }
 //        }
-        if(isHeader(paragraph, null)){
+        if(documentStructure.getParagraphs().size() != 0 &&
+                documentStructure.getParagraphs().get(0).getParagraphBody().getText().trim().length() > 0 &&
+                isHeader(paragraph, null)){
             String lowerCaseText = paragraph.getText().toLowerCase();
             for(Pattern possibleSubDocHeader : possibleSubDocuments){
                 Matcher matcher = possibleSubDocHeader.matcher(lowerCaseText);
@@ -731,9 +735,7 @@ public class DocumentParser {
                     paragraphBold = false;
                 } else {
                     STOnOff.Enum val = cTRPr.getB().getVal();
-                    if(val != null) {
-                        paragraphBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
-                    }
+                    paragraphBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
                 }
             }
 
