@@ -32,10 +32,25 @@ public class ListNumber {
     }
 
     public int incrementNumber(){
+        resetSubLevels(subNumber);
         return ++number;
     }
 
-    public void overrideNumber(int newNumber){
+    public void overrideNumber(int newNumber, boolean resetSubLevels){
         number = newNumber;
+        if(resetSubLevels){
+            resetSubLevels(subNumber);
+        }
+    }
+
+    public void overrideNumber(int newNumber){
+        overrideNumber(newNumber, true);
+    }
+
+    private void resetSubLevels(ListNumber root){
+        while(root != null){
+            root.overrideNumber(0);
+            root = root.subNumber;
+        }
     }
 }

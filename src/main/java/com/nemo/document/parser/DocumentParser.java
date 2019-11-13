@@ -1,6 +1,5 @@
 package com.nemo.document.parser;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Pair;
@@ -44,7 +43,7 @@ public class DocumentParser {
             new AbstractMap.SimpleEntry<>(Pattern.compile("план работ"), DocumentType.WORK_PLAN),
             new AbstractMap.SimpleEntry<>(Pattern.compile("дополнительное соглашение"), DocumentType.SUPPLEMENTARY_AGREEMENT),
             new AbstractMap.SimpleEntry<>(Pattern.compile("приложение(\\s|$)"), DocumentType.ANNEX),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("утвержден(\\s|$)"), DocumentType.CHARTER)
+            new AbstractMap.SimpleEntry<>(Pattern.compile("утвержден[а-я]*(\\s|$)"), DocumentType.CHARTER)
     );
 
     private static List<Pattern> possibleSubDocuments = List.of(Pattern.compile("^\\s*приложение"));
@@ -58,6 +57,8 @@ public class DocumentParser {
     final private static int maxHeaderLength = 1000;
     final private static int maxBodyLength = 100000;
     final private static int firstParagraphBodyCheckLength = 200;
+    final private static int emptyParagraphs4PageBreakSimulation = 1;
+    final private static float minHeaderIndentationLeft = 0.25f;
     private static String version;
 
     static{
@@ -102,12 +103,13 @@ public class DocumentParser {
                     Range range = doc.getRange();
                     TableIterator tableIterator = new TableIterator(range);
                     List<InternalTable> tables = getTablesAndParagraphs(tableIterator);
+                    int pageWidth = doc.getSectionTable().getSections().get(0).getSectionProperties().getXaPage();
                     int paragraphQuantity = range.numParagraphs();
                     for (int i = 0; i < paragraphQuantity; i++) {
                         Paragraph paragraph = range.getParagraph(i);
                         String paragraphText = paragraph.text().endsWith("\r") ? paragraph.text().substring(0, paragraph.text().length() - 1) :
                                 paragraph.text();
-                        if (isSubDocument(paragraph, tables, documentResult)) {
+                        if (isSubDocument(paragraph, tables, documentResult, pageWidth)) {
 //                            int idx = paragraph.text().lastIndexOf("\f");
 //                            if(idx > 0 && paragraphText.length() != 0 && currentParagraph != null){
 //                                String fromPreviousParagraph = paragraph.text().substring(0, idx);
@@ -158,7 +160,7 @@ public class DocumentParser {
                                     paragraphPrefix = level.getNumberText();
                                     ListNumber listNumber = rootListNumber;
                                     for (int l = 0; l <= currentListNumber.getLevel(); l++) {
-                                        paragraphPrefix = paragraphPrefix.replace(Character.toString((char)l), Integer.toString(listNumber.getNumber()));
+                                        paragraphPrefix = paragraphPrefix.replace(Character.toString((char)l), Integer.toString(listNumber.getNumber())) + " ";
                                         listNumber = listNumber.getSubNumber();
                                     }
                                 }
@@ -166,7 +168,7 @@ public class DocumentParser {
                             paragraphText = paragraphPrefix + paragraphText;
 //                        StyleDescription styleDescription = doc.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
                             if ((result.getDocuments().size() == 1 && documentResult.getParagraphs().size() == 0) ||
-                                    isHeader(paragraph, tables)) {
+                                    isHeader(paragraph, tables, pageWidth)) {
                                 if (isPrevHeader) {
                                     currentParagraph.getParagraphHeader().addText(paragraphText);
                                 } else {
@@ -197,13 +199,11 @@ public class DocumentParser {
                 case DOCX:
                     XWPFDocument docx = new XWPFDocument(inputStream);
                     List<IBodyElement> elements = docx.getBodyElements();
-                    int globalOffset = 0;
+                    ElementResult elementResult = new ElementResult(isPrevHeader, false, currentParagraph, 0, 0);
+                    CanBeHeader canBeHeader = CanBeHeader.CAN;
                     for (IBodyElement element : elements) {
-                        Triple<Boolean, com.nemo.document.parser.Paragraph, Integer> elementResult =
-                                processBodyElement(element, currentParagraph, isPrevHeader, globalOffset, result, true, listNumbers);
-                        isPrevHeader = elementResult.getLeft();
-                        currentParagraph = elementResult.getMiddle();
-                        globalOffset = elementResult.getRight();
+                        elementResult = processBodyElement(element, elementResult, result, canBeHeader, listNumbers);
+                        canBeHeader = elementResult.isPageBreak ? CanBeHeader.MUST : CanBeHeader.CAN;
                     }
                     break;
             }
@@ -344,12 +344,11 @@ public class DocumentParser {
         return result;
     }
 
-    private static Triple<Boolean, com.nemo.document.parser.Paragraph, Integer>
-        processBodyElement(IBodyElement element, com.nemo.document.parser.Paragraph currentParagraph, boolean isPrevHeader,
-                       int globalOffset, MultiDocumentStructure result, boolean canBeHeader, Map<Integer, ListNumber> listNumbers){
+    private static ElementResult processBodyElement(IBodyElement element, ElementResult prevElementResult, MultiDocumentStructure result,
+                                                    CanBeHeader canBeHeader, Map<Integer, ListNumber> listNumbers){
         DocumentStructure documentStructure = result.getDocuments().get(result.getDocuments().size() - 1);
         if(element.getElementType() == BodyElementType.CONTENTCONTROL){
-            return new ImmutableTriple<>(isPrevHeader, currentParagraph, globalOffset);
+            return prevElementResult;
         }
         if(element.getElementType() == BodyElementType.TABLE){
             XWPFTable table = (XWPFTable)element;
@@ -382,108 +381,202 @@ public class DocumentParser {
                 }
             }
             for(XWPFTableRow row : table.getRows()){
-                canBeHeader = row.getTableCells().size() == 1 || bilingual;
+                canBeHeader = row.getTableCells().size() == 1 || bilingual ? CanBeHeader.CAN : CanBeHeader.CAN_NOT;
                 for(XWPFTableCell cell : row.getTableCells()){
                     for(IBodyElement bodyElement : cell.getBodyElements()){
-                        Triple<Boolean, com.nemo.document.parser.Paragraph, Integer> elementResult =
-                                processBodyElement(bodyElement, currentParagraph, isPrevHeader, globalOffset, result, canBeHeader, listNumbers);
-                        isPrevHeader = elementResult.getLeft();
-                        currentParagraph = elementResult.getMiddle();
-                        globalOffset = elementResult.getRight();
-                        canBeHeader = isPrevHeader || documentStructure.getParagraphs().size() == 0 ||
-                                row.getTableCells().size() == 1 || bilingual;
+                        ElementResult elementResult =
+                                processBodyElement(bodyElement, prevElementResult, result, canBeHeader, listNumbers);
+                        prevElementResult.isPrevHeader = elementResult.isPrevHeader;
+                        prevElementResult.currentParagraph = elementResult.currentParagraph;
+                        prevElementResult.globalOffset = elementResult.globalOffset;
+                        if(elementResult.isPageBreak){
+                            canBeHeader = CanBeHeader.MUST;
+                        }
+                        else {
+                            canBeHeader = elementResult.isPrevHeader || documentStructure.getParagraphs().size() == 0 ||
+                                    row.getTableCells().size() == 1 || bilingual ? CanBeHeader.CAN : CanBeHeader.CAN_NOT;
+                        }
                     }
                 }
             }
         }
         if(element.getElementType() == BodyElementType.PARAGRAPH) {
             XWPFParagraph paragraph = (XWPFParagraph)element;
-            Pair<Boolean, com.nemo.document.parser.Paragraph> paragrapResult =
-                    processXWPFParagraph(paragraph, currentParagraph, isPrevHeader, globalOffset, result, canBeHeader, listNumbers);
-            isPrevHeader = paragrapResult.getLeft();
-            currentParagraph = paragrapResult.getRight();
-            globalOffset += paragraph.getText().length();
+            ParagraphResult paragraphResult =
+                    processXWPFParagraph(paragraph, prevElementResult, result, canBeHeader, listNumbers);
+            prevElementResult.isPrevHeader = paragraphResult.isPrevHeader;
+            prevElementResult.currentParagraph = paragraphResult.currentParagraph;
+            prevElementResult.globalOffset += paragraph.getText().length();
         }
-        return new ImmutableTriple<>(isPrevHeader, currentParagraph, globalOffset);
+        return prevElementResult;
     }
 
-    private static Pair<Boolean, com.nemo.document.parser.Paragraph>
-        processXWPFParagraph(XWPFParagraph paragraph, com.nemo.document.parser.Paragraph currentParagraph,
-        boolean isPrevHeader, int globalOffset, MultiDocumentStructure result, boolean canBeHeader, Map<Integer, ListNumber> listNumbers){
+    private static ParagraphResult processXWPFParagraph(XWPFParagraph paragraph, ElementResult prevElementResult,
+                                                        MultiDocumentStructure result, CanBeHeader canBeHeader, Map<Integer, ListNumber> listNumbers){
         DocumentStructure documentStructure = result.getDocuments().get(result.getDocuments().size() - 1);
-        if(isSubDocument(paragraph, documentStructure)){
+//        if(isPageBreak(paragraph, documentStructure, prevElementResult.emptyParagraphsBefore)){
+//            prevElementResult.isPageBreak = true;
+//            canBeHeader = CanBeHeader.MUST;
+//        }
+        if(isSubDocument(paragraph, documentStructure, canBeHeader)){
             documentStructure = new DocumentStructure();
             result.addDocument(documentStructure);
-            isPrevHeader = false;
+            prevElementResult.isPrevHeader = false;
+        }
+        if(paragraph.getText().trim().isEmpty()){
+            prevElementResult.emptyParagraphsBefore++;
+        }
+        else{
+            prevElementResult.emptyParagraphsBefore = 0;
         }
         if (documentStructure.getParagraphs().size() != 0 || !paragraph.getText().trim().isEmpty()) {
             if(isTableOfContent(paragraph)){
-                return new ImmutablePair<>(false, currentParagraph);
+                return new ParagraphResult(false, prevElementResult.isPageBreak,
+                        prevElementResult.currentParagraph, prevElementResult.emptyParagraphsBefore);
             }
-            String paragraphPrefix = "";
-            if(paragraph.getNumID() != null){
-                ListNumber rootListNumber = listNumbers.get(paragraph.getNumID().intValue());
-                if(rootListNumber == null){
-                    rootListNumber = new ListNumber(paragraph.getNumIlvl().intValue(), paragraph.getNumFmt());
-                    listNumbers.put(paragraph.getNumID().intValue(), rootListNumber);
-                }
-                ListNumber currentListNumber = rootListNumber;
-                for(int i = 0; i < paragraph.getNumIlvl().intValue(); i++){
-                    if(currentListNumber.getSubNumber() == null){
-                        currentListNumber.setSubNumber(new ListNumber(i + 1, paragraph.getNumFmt()));
-                    }
-                    currentListNumber = currentListNumber.getSubNumber();
-                }
-                int startNumber = getStartNumber(paragraph);
-                if(startNumber > currentListNumber.getNumber()){
-                    currentListNumber.overrideNumber(startNumber);
-                }
-                else{
-                    currentListNumber.incrementNumber();
-                }
-                if("bullet".equals(paragraph.getNumFmt())){
-                    paragraphPrefix = "•";
-                }
-                else {
-                    paragraphPrefix = paragraph.getNumLevelText();
-                    if(paragraphPrefix == null){
-                        paragraphPrefix = "";
-                    }
-                    ListNumber listNumber = rootListNumber;
-                    for (int i = 1; i <= currentListNumber.getLevel() + 1; i++) {
-                        paragraphPrefix = paragraphPrefix.replace("%" + i, Integer.toString(listNumber.getNumber()));
-                        listNumber = listNumber.getSubNumber();
-                    }
-                }
-            }
+            String paragraphPrefix = getNumberPrefix(paragraph, listNumbers);
             if ((result.getDocuments().size() == 1 && documentStructure.getParagraphs().size() == 0) ||
-                    (canBeHeader && isHeader(paragraph, null))) {
-                if (isPrevHeader) {
-                    currentParagraph.getParagraphHeader().addText(paragraphPrefix + paragraph.getText());
+                    canBeHeader == CanBeHeader.MUST || (canBeHeader != CanBeHeader.CAN_NOT && isHeader(paragraph, null))) {
+                if (prevElementResult.isPrevHeader) {
+                    prevElementResult.currentParagraph.getParagraphHeader().addText(paragraphPrefix + paragraph.getText());
                 } else {
-                    currentParagraph = new com.nemo.document.parser.Paragraph();
-                    documentStructure.addParagraph(currentParagraph);
-                    currentParagraph.setParagraphHeader(new TextSegment(globalOffset, paragraphPrefix + paragraph.getText()));
+                    prevElementResult.currentParagraph = new com.nemo.document.parser.Paragraph();
+                    documentStructure.addParagraph(prevElementResult.currentParagraph);
+                    prevElementResult.currentParagraph.setParagraphHeader(new TextSegment(prevElementResult.globalOffset, paragraphPrefix + paragraph.getText()));
                 }
-                return new ImmutablePair<>(true, currentParagraph);
+                if (prevElementResult.currentParagraph.getParagraphHeader().getText().trim().length() != 0){
+                    prevElementResult.isPageBreak = false;
+                }
+                return new ParagraphResult(true, prevElementResult.isPageBreak,
+                        prevElementResult.currentParagraph, prevElementResult.emptyParagraphsBefore);
             } else {
-                if(documentStructure.getParagraphs().size() == 0){ //page break, but no header detected
+                if(documentStructure.getParagraphs().size() == 0){
                     documentStructure = result.getDocuments().get(result.getDocuments().size() - 2);
                     result.getDocuments().remove(result.getDocuments().size() - 1);
                 }
-                if (currentParagraph == null) {
-                    currentParagraph = new com.nemo.document.parser.Paragraph();
-                    documentStructure.addParagraph(currentParagraph);
+                if (prevElementResult.currentParagraph == null) {
+                    prevElementResult.currentParagraph = new com.nemo.document.parser.Paragraph();
+                    documentStructure.addParagraph(prevElementResult.currentParagraph);
                 }
-                if (currentParagraph.getParagraphBody().getOffset() == -1) {
-                    currentParagraph.setParagraphBody(new TextSegment(globalOffset, paragraphPrefix + paragraph.getText()));
+                if (prevElementResult.currentParagraph.getParagraphBody().getOffset() == -1) {
+                    prevElementResult.currentParagraph.setParagraphBody(new TextSegment(prevElementResult.globalOffset, paragraphPrefix + paragraph.getText()));
                 } else {
-                    currentParagraph.getParagraphBody().addText(paragraphPrefix + paragraph.getText());
+                    prevElementResult.currentParagraph.getParagraphBody().addText(paragraphPrefix + paragraph.getText());
                 }
-                return new ImmutablePair<>(false, currentParagraph);
+                return new ParagraphResult(false, prevElementResult.isPageBreak,
+                        prevElementResult.currentParagraph, prevElementResult.emptyParagraphsBefore);
             }
         }
-        return new ImmutablePair<>(isPrevHeader, currentParagraph);
+        return new ParagraphResult(prevElementResult.isPrevHeader, prevElementResult.isPageBreak,
+                prevElementResult.currentParagraph, prevElementResult.emptyParagraphsBefore);
+    }
+
+    private static String getNumberPrefix(XWPFParagraph paragraph, Map<Integer, ListNumber> listNumbers){
+        String paragraphPrefix = "";
+        if(paragraph.getNumID() != null){
+            BigInteger numId = paragraph.getDocument().getNumbering().getAbstractNumID(paragraph.getNumID());
+            int numberingId;
+            if(numId != null) {
+                numberingId = paragraph.getDocument().getNumbering().getAbstractNumID(paragraph.getNumID()).intValue();
+            }
+            else{
+                numberingId = paragraph.getNumID().intValue();
+            }
+            ListNumber rootListNumber = listNumbers.get(numberingId);
+            if(rootListNumber == null){
+                rootListNumber = new ListNumber(paragraph.getNumIlvl().intValue(), paragraph.getNumFmt());
+                listNumbers.put(numberingId, rootListNumber);
+            }
+            ListNumber currentListNumber = rootListNumber;
+            for(int i = 0; i < paragraph.getNumIlvl().intValue(); i++){
+                if(currentListNumber.getSubNumber() == null){
+                    currentListNumber.setSubNumber(new ListNumber(i + 1, paragraph.getNumFmt()));
+                }
+                currentListNumber = currentListNumber.getSubNumber();
+            }
+            int startNumber = getStartNumber(paragraph);
+            if(startNumber > currentListNumber.getNumber()){
+                currentListNumber.overrideNumber(startNumber);
+            }
+            else {
+                currentListNumber.incrementNumber();
+            }
+            if("bullet".equals(paragraph.getNumFmt())){
+                paragraphPrefix = "•";
+            }
+            else {
+                paragraphPrefix = paragraph.getNumLevelText();
+                if(paragraphPrefix == null){
+                    paragraphPrefix = "";
+                }
+                ListNumber listNumber = rootListNumber;
+                for (int i = 1; i <= currentListNumber.getLevel() + 1; i++) {
+                    if(listNumber.getNumber() == 0){
+                        listNumber.overrideNumber(1, false);
+                    }
+                    paragraphPrefix = paragraphPrefix.replace("%" + i, Integer.toString(listNumber.getNumber()));
+                    listNumber = listNumber.getSubNumber();
+                }
+            }
+        }
+        else if(!paragraph.getText().trim().isEmpty() && paragraph.getStyleID() != null){
+            CTStyle style = paragraph.getDocument().getStyles().getStyle(paragraph.getStyleID()).getCTStyle();
+            if(style != null && style.isSetPPr() && style.getPPr().isSetNumPr() && style.getPPr().getNumPr().isSetNumId()){
+                BigInteger abstractNumId = paragraph.getDocument().getNumbering().getAbstractNumID(style.getPPr().getNumPr().getNumId().getVal());
+                int listId = abstractNumId.intValue();
+                CTAbstractNum abstractNum = paragraph.getDocument().getNumbering().getAbstractNum(abstractNumId).getCTAbstractNum();
+                List<CTLvl> levels = abstractNum.getLvlList();
+                CTLvl abstractLevel = null;
+                for(CTLvl ctLvl : levels){
+                    if(ctLvl.getPStyle() != null && paragraph.getStyleID().equals(ctLvl.getPStyle().getVal())) {
+                        abstractLevel = ctLvl;
+                        break;
+                    }
+                }
+                if(abstractLevel != null) {
+                    int listLevel = abstractLevel.getIlvl().intValue();
+                    String numberFormat = abstractLevel.getNumFmt().getVal().toString();
+                    ListNumber rootListNumber = listNumbers.get(listId);
+                    if (rootListNumber == null) {
+                        rootListNumber = new ListNumber(listLevel, numberFormat);
+                        listNumbers.put(listId, rootListNumber);
+                    }
+                    ListNumber currentListNumber = rootListNumber;
+                    for (int i = 0; i < listLevel; i++) {
+                        if (currentListNumber.getSubNumber() == null) {
+                            currentListNumber.setSubNumber(new ListNumber(i + 1, numberFormat));
+                        }
+                        currentListNumber = currentListNumber.getSubNumber();
+                    }
+                    int startNumber = 0;
+                    if(abstractLevel.isSetStart()) {
+                        startNumber = abstractLevel.getStart().getVal().intValue();
+                    }
+                    if (startNumber > currentListNumber.getNumber()) {
+                        currentListNumber.overrideNumber(startNumber);
+                    } else {
+                        currentListNumber.incrementNumber();
+                    }
+                    if ("bullet".equals(numberFormat)) {
+                        paragraphPrefix = "•";
+                    } else {
+                        paragraphPrefix = "";
+                        if (abstractLevel.getLvlText() != null) {
+                            paragraphPrefix = abstractLevel.getLvlText().getVal();
+                        }
+                        ListNumber listNumber = rootListNumber;
+                        for (int i = 1; i <= currentListNumber.getLevel() + 1; i++) {
+                            if(listNumber.getNumber() == 0){
+                                listNumber.overrideNumber(1, false);
+                            }
+                            paragraphPrefix = paragraphPrefix.replace("%" + i, Integer.toString(listNumber.getNumber()));
+                            listNumber = listNumber.getSubNumber();
+                        }
+                    }
+                }
+            }
+        }
+        return paragraphPrefix.isEmpty() ? paragraphPrefix : paragraphPrefix + " ";
     }
 
     private static int getStartNumber(XWPFParagraph paragraph){
@@ -500,18 +593,16 @@ public class DocumentParser {
             }
         }
         catch (Exception ex){
-            return -1;
+            return 0;
         }
-        return -1;
+        return 0;
     }
 
-    private static boolean isSubDocument(Paragraph paragraph, List<InternalTable> tables, DocumentStructure documentStructure){
+    private static boolean isSubDocument(Paragraph paragraph, List<InternalTable> tables, DocumentStructure documentStructure, int pageWidth){
 //        if(paragraph.pageBreakBefore() || (paragraph.text().contains("\f") && !paragraph.text().contains("FORM"))){
 //            return true;
 //        }
-        if(documentStructure.getParagraphs().size() != 0 &&
-                documentStructure.getParagraphs().get(0).getParagraphBody().getText().trim().length() > 0 &&
-                isHeader(paragraph, tables)){
+        if(!isAllBodiesEmpty(documentStructure) && isHeader(paragraph, tables, pageWidth)){
             String lowerCaseText = paragraph.text().toLowerCase();
             for(Pattern possibleSubDocHeader : possibleSubDocuments){
                 Matcher matcher = possibleSubDocHeader.matcher(lowerCaseText);
@@ -523,24 +614,9 @@ public class DocumentParser {
         return false;
     }
 
-    private static boolean isSubDocument(XWPFParagraph paragraph, DocumentStructure documentStructure){
-//        if(paragraph.isPageBreak()){
-//            return true;
-//        }
-//        if(paragraph.getCTP().getPPr() != null && paragraph.getCTP().getPPr().getSectPr() != null &&
-//                paragraph.getCTP().getPPr().getSectPr().isSetPgSz()){
-//            return true;
-//        }
-//        for(XWPFRun run : paragraph.getRuns()){
-//            for(CTBr ctbr : run.getCTR().getBrList()){
-//                if(ctbr.getType() != null && ctbr.getType().intValue() == STBrType.PAGE.intValue()){
-//                    return true;
-//                }
-//            }
-//        }
-        if(documentStructure.getParagraphs().size() != 0 &&
-                documentStructure.getParagraphs().get(0).getParagraphBody().getText().trim().length() > 0 &&
-                isHeader(paragraph, null)){
+    private static boolean isSubDocument(XWPFParagraph paragraph, DocumentStructure documentStructure, CanBeHeader canBeHeader){
+        if(!isAllBodiesEmpty(documentStructure) && (canBeHeader == CanBeHeader.MUST ||
+                (canBeHeader == CanBeHeader.CAN && isHeader(paragraph, null)))){
             String lowerCaseText = paragraph.getText().toLowerCase();
             for(Pattern possibleSubDocHeader : possibleSubDocuments){
                 Matcher matcher = possibleSubDocHeader.matcher(lowerCaseText);
@@ -550,6 +626,15 @@ public class DocumentParser {
             }
         }
         return false;
+    }
+
+    private static boolean isAllBodiesEmpty(DocumentStructure documentStructure){
+        for(com.nemo.document.parser.Paragraph paragraph : documentStructure.getParagraphs()){
+            if(paragraph.getParagraphBody().getText().trim().length() > 0){
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean isTableOfContent(String paragraphText){
@@ -657,12 +742,7 @@ public class DocumentParser {
         return null;
     }
 
-    private static boolean isHeader(Paragraph paragraph, List<InternalTable> tables){
-        Matcher matcher = alphabetPattern.matcher(paragraph.text());
-        if(!matcher.find()){
-            return false;
-        }
-
+    private static boolean isHeader(Paragraph paragraph, List<InternalTable> tables, int pageWidth){
 //        String styleName = document.getStyleSheet().getStyleDescription(paragraph.getStyleIndex()).getName().toLowerCase();
 //        Matcher styleNameMatcher = styleNamePattern.matcher(styleName);
 //        if(styleNameMatcher.lookingAt()){
@@ -677,11 +757,21 @@ public class DocumentParser {
             }
         }
 
+        if(paragraph.getIndentFromLeft() / (double)pageWidth > minHeaderIndentationLeft){
+            return true;
+        }
+
         int alignment = paragraph.getFontAlignment();
         int justification = paragraph.getJustification();
         if(alignment == 3 || justification == 1 || justification == 2){
             return true;
         }
+
+        Matcher matcher = alphabetPattern.matcher(paragraph.text());
+        if(!matcher.find()){
+            return false;
+        }
+
         int characterRunQuantity = paragraph.numCharacterRuns();
         boolean allCharactersBold = true;
         boolean allCharactersCapitalized = true;
@@ -704,21 +794,59 @@ public class DocumentParser {
         return allCharactersBold || allCharactersCapitalized;
     }
 
+    private static boolean isPageBreak(XWPFParagraph paragraph, DocumentStructure documentStructure, int emptyParagrapshBefore){
+        if(documentStructure.getParagraphs().size() != 0) {
+            com.nemo.document.parser.Paragraph lastParagraph = documentStructure.getParagraphs().get(documentStructure.getParagraphs().size() - 1);
+            if(emptyParagrapshBefore >= emptyParagraphs4PageBreakSimulation){
+                return true;
+            }
+        }
+        if(paragraph.isPageBreak()){
+            return true;
+        }
+        if(paragraph.getCTP().getPPr() != null && paragraph.getCTP().getPPr().getSectPr() != null &&
+                paragraph.getCTP().getPPr().getSectPr().isSetPgSz()){
+            return true;
+        }
+        for(XWPFRun run : paragraph.getRuns()){
+            for(CTBr ctbr : run.getCTR().getBrList()){
+                if(ctbr.getType() != null && ctbr.getType().intValue() == STBrType.PAGE.intValue()){
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean isHeader(XWPFParagraph paragraph, List<XWPFParagraph> excludeParagraphs){
-        Matcher matcher = alphabetPattern.matcher(paragraph.getText());
-        if(!matcher.find()){
+        if(excludeParagraphs != null && excludeParagraphs.contains(paragraph)){
             return false;
         }
 
+        CTPageSz pageSize = paragraph.getDocument().getDocument().getBody().getSectPr().getPgSz();
+        long pageWidth = pageSize.getW().longValue();
+        CTPPr ctPPr = paragraph.getCTP().getPPr();
+        if(ctPPr != null) {
+            CTSectPr sectPr = ctPPr.getSectPr();
+            if(sectPr != null && sectPr.getPgSz() != null && sectPr.getPgSz().getW() != null){
+                pageWidth = sectPr.getPgSz().getW().longValue();
+            }
 
-        if(excludeParagraphs != null && excludeParagraphs.contains(paragraph)){
-            return false;
+            if(paragraph.getIndentationLeft() / (double)pageWidth > minHeaderIndentationLeft){
+                return true;
+            }
         }
 
         ParagraphAlignment alignment = paragraph.getAlignment();
         if(alignment.equals(ParagraphAlignment.CENTER) || alignment.equals(ParagraphAlignment.RIGHT)){
             return true;
         }
+
+        Matcher matcher = alphabetPattern.matcher(paragraph.getText());
+        if(!matcher.find()){
+            return false;
+        }
+
         boolean paragraphBold = false;
         if(paragraph.getStyleID() != null) {
             XWPFStyle style = paragraph.getDocument().getStyles().getStyle(paragraph.getStyleID());
@@ -740,9 +868,6 @@ public class DocumentParser {
             }
 
         }
-        if(paragraphBold){
-            return true;
-        }
 
         List<XWPFRun> runs = paragraph.getRuns();
         boolean allCharactersBold = true;
@@ -758,7 +883,7 @@ public class DocumentParser {
             }
             if(!run.text().trim().isEmpty()) {
                 matcher = valuableSymbolPattern.matcher(run.text());
-                if (!isBold(run) && matcher.find()) {
+                if (!isBold(run, paragraphBold) && matcher.find()) {
                     allCharactersBold = false;
                 }
             }
@@ -766,8 +891,9 @@ public class DocumentParser {
         return allCharactersBold || allCharactersCapitalized;
     }
 
-    private static boolean isBold(XWPFRun run){
+    private static boolean isBold(XWPFRun run, boolean paragraphBold){
         boolean isRBold = false;
+        Boolean styleBold = null;
         CTRPr cTRPr = run.getCTR().getRPr();
         if (cTRPr != null) {
             CTString rStyle = cTRPr.getRStyle();
@@ -777,11 +903,9 @@ public class DocumentParser {
                 if (style != null) {
                     cTRPr = style.getCTStyle().getRPr();
                     if (cTRPr != null) {
-                        if (!cTRPr.isSetB()) {
-                            isRBold = false;
-                        } else {
+                        if (cTRPr.isSetB()) {
                             STOnOff.Enum val = cTRPr.getB().getVal();
-                            isRBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+                            styleBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
                         }
                     }
                 }
@@ -794,6 +918,12 @@ public class DocumentParser {
                 STOnOff.Enum val = cTRPr.getB().getVal();
                 isRBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
             }
+            else{
+                isRBold = Objects.requireNonNullElse(styleBold, paragraphBold);
+            }
+        }
+        else{
+            isRBold = Objects.requireNonNullElse(styleBold, paragraphBold);
         }
         return isRBold;
     }
@@ -802,5 +932,28 @@ public class DocumentParser {
         Paragraph[][][] content;
         boolean constantColumnNumber = true;
         boolean bilingual = false;
+    }
+
+    private static class ParagraphResult{
+        public ParagraphResult(boolean isPrevHeader, boolean isPageBreak, com.nemo.document.parser.Paragraph currentParagraph, int emptyParagraphsBefore) {
+            this.isPrevHeader = isPrevHeader;
+            this.isPageBreak = isPageBreak;
+            this.currentParagraph = currentParagraph;
+            this.emptyParagraphsBefore = emptyParagraphsBefore;
+        }
+
+        boolean isPrevHeader;
+        boolean isPageBreak;
+        com.nemo.document.parser.Paragraph currentParagraph;
+        int emptyParagraphsBefore = 0;
+    }
+
+    private static class ElementResult extends ParagraphResult{
+        public ElementResult(boolean isPrevHeader, boolean isPageBreak, com.nemo.document.parser.Paragraph currentParagraph, int globalOffset, int emptyParagraphsBefore) {
+            super(isPrevHeader, isPageBreak, currentParagraph, emptyParagraphsBefore);
+            this.globalOffset = globalOffset;
+        }
+
+        int globalOffset;
     }
 }
