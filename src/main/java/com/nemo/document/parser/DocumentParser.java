@@ -41,12 +41,13 @@ public class DocumentParser {
             new AbstractMap.SimpleEntry<>(Pattern.compile("благотворител"), DocumentType.CHARITY_POLICY),
             new AbstractMap.SimpleEntry<>(Pattern.compile("приказ(\\s|$)"), DocumentType.ORDER),
             new AbstractMap.SimpleEntry<>(Pattern.compile("план работ"), DocumentType.WORK_PLAN),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("дополнительное соглашение"), DocumentType.SUPPLEMENTARY_AGREEMENT),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("дополнительное\\s+соглашение"), DocumentType.SUPPLEMENTARY_AGREEMENT),
             new AbstractMap.SimpleEntry<>(Pattern.compile("приложение(\\s|$)"), DocumentType.ANNEX),
             new AbstractMap.SimpleEntry<>(Pattern.compile("утвержден[а-я]*(\\s|$)"), DocumentType.CHARTER)
     );
 
-    private static List<Pattern> possibleSubDocuments = List.of(Pattern.compile("^\\s*приложение"));
+    private static List<Pattern> possibleSubDocuments = List.of(Pattern.compile("^\\s*приложение"),
+            Pattern.compile("^\\s*дополнительное\\s+соглашение"));
     private static Pattern tableOfContentDocPattern = Pattern.compile("PAGEREF _Toc\\d+");
     private static Pattern alphabetPattern = Pattern.compile("[A-Za-zА-Яа-я0-9]{5,}");
     private static Pattern alphabetUpperCasePattern = Pattern.compile("[A-ZА-Я]{5,}");
