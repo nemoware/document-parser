@@ -29,6 +29,7 @@ public class DocumentParser {
     private static String dateRegEx = "(?<day>[1-2][0-9]|3[01]|0?[1-9]).\\s*(?<month>1[0-2]|0[1-9]|января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря).\\s*(?<year>[1-2]\\d{3})";
     private static Pattern datePattern = Pattern.compile(dateRegEx, Pattern.CASE_INSENSITIVE);
     private static Pattern documentNumberPattern = Pattern.compile("№[ \\t]*(?<number>\\S+)(\\s+|$)");
+    private static Pattern documentNumberValidationPattern = Pattern.compile("([A-Za-zА-Яа-я0-9]+)");
     private static Logger logger = LoggerFactory.getLogger(DocumentParser.class);
     private static     String[] shortMonths = {
             "янв", "фев", "мар", "апр", "ма", "июн",
@@ -211,10 +212,10 @@ public class DocumentParser {
             checkDocumentStructure(result);
             for (DocumentStructure documentStructure : result.getDocuments()) {
                 if (documentStructure.getParagraphs().size() > 0) {
-                    documentStructure.setDocumentType(findDocumentType(documentStructure));
-                    documentStructure.setDocumentDate(findDocumentDate(documentStructure));
+                    findDocumentType(documentStructure);
+                    findDocumentDate(documentStructure);
                     if (documentStructure.getDocumentType() != DocumentType.CHARTER) {
-                        documentStructure.setDocumentNumber(findDocumentNumber(documentStructure));
+                        findDocumentNumber(documentStructure);
                     }
                 }
             }
@@ -256,7 +257,7 @@ public class DocumentParser {
         }
     }
 
-    private static String findDocumentNumber(DocumentStructure document){
+    private static void findDocumentNumber(DocumentStructure document){
         String result = "";
         int offset = 0;
         String text = "";
@@ -279,11 +280,14 @@ public class DocumentParser {
         if(result.isEmpty()){
             offset = -1;
         }
-        document.setDocumentNumberSegment(new TextSegment(offset, text));
-        return result;
+        Matcher matcher = documentNumberValidationPattern.matcher(result);
+        if(matcher.find()) {
+            document.setDocumentNumberSegment(new TextSegment(offset, text));
+            document.setDocumentNumber(result);
+        }
     }
 
-    private static LocalDate findDocumentDate(DocumentStructure document){
+    private static void findDocumentDate(DocumentStructure document){
         LocalDate result = null;
         int offset = 0;
         String text = "";
@@ -320,10 +324,10 @@ public class DocumentParser {
             offset = -1;
         }
         document.setDocumentDateSegment(new TextSegment(offset, text));
-        return result;
+        document.setDocumentDate(result);
     }
 
-    private static DocumentType findDocumentType(DocumentStructure document){
+    private static void findDocumentType(DocumentStructure document){
         DocumentType result = DocumentType.UNKNOWN;
         for(com.nemo.document.parser.Paragraph paragraph : document.getParagraphs()) {
             if (paragraph.getParagraphHeader() != null) {
@@ -342,7 +346,7 @@ public class DocumentParser {
                 break;
             }
         }
-        return result;
+        document.setDocumentType(result);
     }
 
     private static ElementResult processBodyElement(IBodyElement element, ElementResult prevElementResult, MultiDocumentStructure result,
