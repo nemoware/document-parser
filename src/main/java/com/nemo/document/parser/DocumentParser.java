@@ -203,8 +203,9 @@ public class DocumentParser {
                     List<IBodyElement> elements = docx.getBodyElements();
                     ElementResult elementResult = new ElementResult(isPrevHeader, false, currentParagraph, 0, 0);
                     CanBeHeader canBeHeader = CanBeHeader.CAN;
+                    List<String> styleChain = new ArrayList<>();
                     for (IBodyElement element : elements) {
-                        elementResult = processBodyElement(element, elementResult, result, canBeHeader, listNumbers);
+                        elementResult = processBodyElement(element, elementResult, result, canBeHeader, listNumbers, styleChain);
                         canBeHeader = elementResult.isPageBreak ? CanBeHeader.MUST : CanBeHeader.CAN;
                     }
                     break;
@@ -350,13 +351,16 @@ public class DocumentParser {
     }
 
     private static ElementResult processBodyElement(IBodyElement element, ElementResult prevElementResult, MultiDocumentStructure result,
-                                                    CanBeHeader canBeHeader, Map<Integer, ListNumber> listNumbers){
+                                                    CanBeHeader canBeHeader, Map<Integer, ListNumber> listNumbers, List<String> styleChain){
         DocumentStructure documentStructure = result.getDocuments().get(result.getDocuments().size() - 1);
         if(element.getElementType() == BodyElementType.CONTENTCONTROL){
             return prevElementResult;
         }
         if(element.getElementType() == BodyElementType.TABLE){
             XWPFTable table = (XWPFTable)element;
+            if(table.getStyleID() != null) {
+                styleChain.add(table.getStyleID());
+            }
             int prevNumCells = -1;
             boolean constantColumnNumber = true;
             boolean bilingual = false;
@@ -390,7 +394,7 @@ public class DocumentParser {
                 for(XWPFTableCell cell : row.getTableCells()){
                     for(IBodyElement bodyElement : cell.getBodyElements()){
                         ElementResult elementResult =
-                                processBodyElement(bodyElement, prevElementResult, result, canBeHeader, listNumbers);
+                                processBodyElement(bodyElement, prevElementResult, result, canBeHeader, listNumbers, styleChain);
                         prevElementResult.isPrevHeader = elementResult.isPrevHeader;
                         prevElementResult.currentParagraph = elementResult.currentParagraph;
                         prevElementResult.globalOffset = elementResult.globalOffset;
@@ -404,11 +408,14 @@ public class DocumentParser {
                     }
                 }
             }
+            if(table.getStyleID() != null) {
+                styleChain.remove(styleChain.size() - 1);
+            }
         }
         if(element.getElementType() == BodyElementType.PARAGRAPH) {
             XWPFParagraph paragraph = (XWPFParagraph)element;
             ParagraphResult paragraphResult =
-                    processXWPFParagraph(paragraph, prevElementResult, result, canBeHeader, listNumbers);
+                    processXWPFParagraph(paragraph, prevElementResult, result, canBeHeader, listNumbers, styleChain);
             prevElementResult.isPrevHeader = paragraphResult.isPrevHeader;
             prevElementResult.currentParagraph = paragraphResult.currentParagraph;
             prevElementResult.globalOffset += paragraph.getText().length();
@@ -417,13 +424,13 @@ public class DocumentParser {
     }
 
     private static ParagraphResult processXWPFParagraph(XWPFParagraph paragraph, ElementResult prevElementResult,
-                                                        MultiDocumentStructure result, CanBeHeader canBeHeader, Map<Integer, ListNumber> listNumbers){
+            MultiDocumentStructure result, CanBeHeader canBeHeader, Map<Integer, ListNumber> listNumbers, List<String> styleCain){
         DocumentStructure documentStructure = result.getDocuments().get(result.getDocuments().size() - 1);
 //        if(isPageBreak(paragraph, documentStructure, prevElementResult.emptyParagraphsBefore)){
 //            prevElementResult.isPageBreak = true;
 //            canBeHeader = CanBeHeader.MUST;
 //        }
-        if(isSubDocument(paragraph, documentStructure, canBeHeader)){
+        if(isSubDocument(paragraph, documentStructure, canBeHeader, styleCain)){
             documentStructure = new DocumentStructure();
             result.addDocument(documentStructure);
             prevElementResult.isPrevHeader = false;
@@ -441,7 +448,7 @@ public class DocumentParser {
             }
             String paragraphPrefix = getNumberPrefix(paragraph, listNumbers);
             if ((result.getDocuments().size() == 1 && documentStructure.getParagraphs().size() == 0) ||
-                    canBeHeader == CanBeHeader.MUST || (canBeHeader != CanBeHeader.CAN_NOT && isHeader(paragraph, null))) {
+                    canBeHeader == CanBeHeader.MUST || (canBeHeader != CanBeHeader.CAN_NOT && isHeader(paragraph, null, styleCain))) {
                 if (prevElementResult.isPrevHeader) {
                     prevElementResult.currentParagraph.getParagraphHeader().addText(paragraphPrefix + paragraph.getText());
                 } else {
@@ -619,9 +626,10 @@ public class DocumentParser {
         return false;
     }
 
-    private static boolean isSubDocument(XWPFParagraph paragraph, DocumentStructure documentStructure, CanBeHeader canBeHeader){
+    private static boolean isSubDocument(XWPFParagraph paragraph, DocumentStructure documentStructure,
+                                         CanBeHeader canBeHeader, List<String> styleChain){
         if(!isAllBodiesEmpty(documentStructure) && (canBeHeader == CanBeHeader.MUST ||
-                (canBeHeader == CanBeHeader.CAN && isHeader(paragraph, null)))){
+                (canBeHeader == CanBeHeader.CAN && isHeader(paragraph, null, styleChain)))){
             String lowerCaseText = paragraph.getText().toLowerCase();
             for(Pattern possibleSubDocHeader : possibleSubDocuments){
                 Matcher matcher = possibleSubDocHeader.matcher(lowerCaseText);
@@ -823,7 +831,7 @@ public class DocumentParser {
         return false;
     }
 
-    private static boolean isHeader(XWPFParagraph paragraph, List<XWPFParagraph> excludeParagraphs){
+    private static boolean isHeader(XWPFParagraph paragraph, List<XWPFParagraph> excludeParagraphs, List<String> styleCain){
         if(excludeParagraphs != null && excludeParagraphs.contains(paragraph)){
             return false;
         }
@@ -852,26 +860,17 @@ public class DocumentParser {
             return false;
         }
 
-        boolean paragraphBold = false;
-        if(paragraph.getStyleID() != null) {
-            XWPFStyle style = paragraph.getDocument().getStyles().getStyle(paragraph.getStyleID());
-//            if (style != null && style.getCTStyle() != null && style.getCTStyle().getPPr() != null &&
-//                    style.getCTStyle().getPPr().getJc() != null) {
-//                String aligmentValue = style.getCTStyle().getPPr().getJc().getVal().toString().toLowerCase();
-//                if (aligmentValue.equals("center") || aligmentValue.equals("right")) {
-//                    return true;
-//                }
-//            }
-            CTRPr cTRPr = style.getCTStyle().getRPr();
-            if (cTRPr != null) {
-                if (!cTRPr.isSetB()) {
-                    paragraphBold = false;
-                } else {
-                    STOnOff.Enum val = cTRPr.getB().getVal();
-                    paragraphBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
-                }
-            }
+        if(paragraph.getStyleID() != null){
+            styleCain.add(paragraph.getStyleID());
+        }
 
+        boolean paragraphBold = false;
+        for(String styleId : styleCain){
+            paragraphBold ^= isBold(paragraph.getDocument(), styleId);
+        }
+
+        if(paragraph.getStyleID() != null) {
+            styleCain.remove(styleCain.size() - 1);
         }
 
         List<XWPFRun> runs = paragraph.getRuns();
@@ -896,24 +895,34 @@ public class DocumentParser {
         return allCharactersBold || allCharactersCapitalized;
     }
 
+    private static boolean isBold(XWPFDocument document, String styleID){
+        boolean result = false;
+        XWPFStyle style = document.getStyles().getStyle(styleID);
+        CTRPr cTRPr = style.getCTStyle().getRPr();
+        if (cTRPr != null) {
+            if (cTRPr.isSetB()) {
+                STOnOff.Enum val = cTRPr.getB().getVal();
+                result = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
+            }
+            else{
+                String baseStyleId = style.getBasisStyleID();
+                if(baseStyleId != null){
+                    result = isBold(document, baseStyleId);
+                }
+            }
+        }
+        return result;
+    }
+
     private static boolean isBold(XWPFRun run, boolean paragraphBold){
         boolean isRBold = false;
-        Boolean styleBold = null;
+        boolean styleBold = false;
         CTRPr cTRPr = run.getCTR().getRPr();
         if (cTRPr != null) {
             CTString rStyle = cTRPr.getRStyle();
             if (rStyle != null) {
                 String rStyleId = rStyle.getVal();
-                XWPFStyle style = run.getDocument().getStyles().getStyle(rStyleId);
-                if (style != null) {
-                    cTRPr = style.getCTStyle().getRPr();
-                    if (cTRPr != null) {
-                        if (cTRPr.isSetB()) {
-                            STOnOff.Enum val = cTRPr.getB().getVal();
-                            styleBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
-                        }
-                    }
-                }
+                styleBold = isBold(run.getDocument(), rStyleId);
             }
         }
 
@@ -924,11 +933,11 @@ public class DocumentParser {
                 isRBold = !((STOnOff.FALSE == val) || (STOnOff.X_0 == val) || (STOnOff.OFF == val));
             }
             else{
-                isRBold = Objects.requireNonNullElse(styleBold, paragraphBold);
+                isRBold = styleBold ^ paragraphBold;
             }
         }
         else{
-            isRBold = Objects.requireNonNullElse(styleBold, paragraphBold);
+            isRBold = styleBold ^ paragraphBold;
         }
         return isRBold;
     }
