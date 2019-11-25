@@ -1,5 +1,6 @@
 package com.nemo.document.parser.web;
 
+import com.nemo.document.parser.DocumentFileType;
 import com.nemo.document.parser.DocumentStructure;
 import com.nemo.document.parser.DocumentParser;
 import com.nemo.document.parser.MultiDocumentStructure;
@@ -38,6 +39,6 @@ public class DocumentParserController {
     @ResponseBody
     public MultiDocumentStructure getDocumentStructureByContent(@RequestBody DocumentParserRequest request) throws IOException{
         byte[] decodedBytes = Base64.getDecoder().decode(request.getBase64Content());
-        return DocumentParser.parse(new ByteArrayInputStream(decodedBytes), request.getDocumentFileType());
+        return DocumentParser.parse(new ByteArrayInputStream(decodedBytes), DocumentFileType.valueOf(request.getDocumentFileType()));
     }
 }

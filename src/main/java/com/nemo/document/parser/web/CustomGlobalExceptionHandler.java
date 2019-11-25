@@ -12,7 +12,7 @@ import java.io.IOException;
 
 @ControllerAdvice
 public class CustomGlobalExceptionHandler extends ResponseEntityExceptionHandler {
-    @ExceptionHandler({IOException.class, EmptyFileException.class, OLE2NotOfficeXmlFileException.class})
+    @ExceptionHandler({IOException.class, EmptyFileException.class, OLE2NotOfficeXmlFileException.class, IllegalArgumentException.class})
     public void springHandleNotFound(HttpServletResponse response) throws IOException {
         response.sendError(HttpStatus.BAD_REQUEST.value());
     }

@@ -4,7 +4,7 @@ import com.nemo.document.parser.DocumentFileType;
 
 public class DocumentParserRequest {
     private String base64Content;
-    private DocumentFileType documentFileType;
+    private String documentFileType;
 
     public String getBase64Content() {
         return base64Content;
@@ -14,11 +14,11 @@ public class DocumentParserRequest {
         this.base64Content = base64Content;
     }
 
-    public DocumentFileType getDocumentFileType() {
+    public String getDocumentFileType() {
         return documentFileType;
     }
 
-    public void setDocumentFileType(DocumentFileType documentFileType) {
+    public void setDocumentFileType(String documentFileType) {
         this.documentFileType = documentFileType;
     }
 }
