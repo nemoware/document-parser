@@ -44,7 +44,9 @@ public class DocumentParser {
             new AbstractMap.SimpleEntry<>(Pattern.compile("план работ"), DocumentType.WORK_PLAN),
             new AbstractMap.SimpleEntry<>(Pattern.compile("дополнительное\\s+соглашение"), DocumentType.SUPPLEMENTARY_AGREEMENT),
             new AbstractMap.SimpleEntry<>(Pattern.compile("приложение(\\s|$)"), DocumentType.ANNEX),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("утвержден[а-я]*(\\s|$)"), DocumentType.CHARTER)
+            new AbstractMap.SimpleEntry<>(Pattern.compile("утвержден[а-я]*(\\s|$)"), DocumentType.CHARTER),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("контракт(\\s|$)"), DocumentType.CONTRACT),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("решение(\\s|$)"), DocumentType.PROTOCOL)
     );
 
     private static List<Pattern> possibleSubDocuments = List.of(Pattern.compile("^\\s*приложение"),
@@ -56,6 +58,7 @@ public class DocumentParser {
     private static Pattern engAlphabetPattern = Pattern.compile("[A-Za-z]{5,}");
     private static Pattern styleNamePattern = Pattern.compile("title|heading|заголовок");
     private static Pattern valuableSymbolPattern = Pattern.compile("[A-Za-zА-Яа-я]");
+    private static Pattern endStringPattern = Pattern.compile("\r|\n");
     final private static int maxHeaderLength = 1000;
     final private static int maxBodyLength = 100000;
     final private static int firstParagraphBodyCheckLength = 200;
@@ -229,30 +232,35 @@ public class DocumentParser {
     }
 
     private static void checkDocumentStructure(MultiDocumentStructure multiDoc){
-        for(Iterator<DocumentStructure> iterator = multiDoc.getDocuments().iterator(); iterator.hasNext();) {
-            DocumentStructure documentStructure = iterator.next();
+        for(Iterator<DocumentStructure> documentIterator = multiDoc.getDocuments().iterator(); documentIterator.hasNext();) {
+            DocumentStructure documentStructure = documentIterator.next();
             if(documentStructure.getParagraphs().size() == 0){
-                iterator.remove();
+                documentIterator.remove();
                 continue;
             }
-            for (int i = 0; i < documentStructure.getParagraphs().size(); i++) {
-                com.nemo.document.parser.Paragraph paragraph = documentStructure.getParagraphs().get(i);
+            com.nemo.document.parser.Paragraph previousParagraph = null;
+            for (Iterator<com.nemo.document.parser.Paragraph> paragraphIterator = documentStructure.getParagraphs().iterator(); paragraphIterator.hasNext();) {
+                com.nemo.document.parser.Paragraph paragraph = paragraphIterator.next();
                 if (paragraph.getParagraphHeader().getLength() > maxHeaderLength) {
                     String longHeader = paragraph.getParagraphHeader().getText();
-                    Pattern pattern = Pattern.compile("\r|\n");
-                    Matcher matcher = pattern.matcher(longHeader);
+                    Matcher matcher = endStringPattern.matcher(longHeader);
                     if (matcher.find()) {
                         String shortHeader = longHeader.substring(0, matcher.start());
                         String newBody = longHeader.substring(matcher.start()) + paragraph.getParagraphBody().getText();
                         paragraph.setParagraphHeader(new TextSegment(paragraph.getParagraphHeader().getOffset(), shortHeader));
                         paragraph.setParagraphBody(new TextSegment(paragraph.getParagraphHeader().getOffset() + paragraph.getParagraphHeader().getLength(),
                                 newBody));
-                    } else {
-                        logger.warn("Paragraph header is too large. Paragraph number={}, header length={}", i, paragraph.getParagraphBody().getLength());
                     }
                 }
-                if (paragraph.getParagraphBody().getLength() > maxBodyLength) {
-                    logger.warn("Paragraph body is too large. Paragraph number={}, body length={}", i, paragraph.getParagraphBody().getLength());
+
+                if(paragraph.getParagraphHeader().getText().trim().isEmpty()){
+                    if(!paragraph.getParagraphBody().getText().trim().isEmpty() && previousParagraph != null){
+                        previousParagraph.getParagraphBody().addText(paragraph.getParagraphBody().getText());
+                    }
+                    paragraphIterator.remove();
+                }
+                else{
+                    previousParagraph = paragraph;
                 }
             }
         }
