@@ -26,6 +26,7 @@ public class TextSegment {
     public void addText(String text){
         if(this.text.length() > 0 && this.text.lastIndexOf(System.lineSeparator()) != this.text.length() - System.lineSeparator().length()){
             this.text.append(System.lineSeparator());
+            this.length += System.lineSeparator().length();
         }
         this.text.append(text);
         this.length += text.length();

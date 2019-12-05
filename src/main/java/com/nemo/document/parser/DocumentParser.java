@@ -35,18 +35,18 @@ public class DocumentParser {
             "янв", "фев", "мар", "апр", "ма", "июн",
             "июл", "авг", "сен", "окт", "ноя", "дек"};
     private static Map<Pattern, DocumentType> keyToDocType = Map.ofEntries(
-            new AbstractMap.SimpleEntry<>(Pattern.compile("договор(\\s|$)"), DocumentType.CONTRACT),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("устав(\\s|$)"), DocumentType.CHARTER),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("протокол(\\s|$)"), DocumentType.PROTOCOL),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("положение(\\s|$)"), DocumentType.REGULATION),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("договор[^А-Яа-я]"), DocumentType.CONTRACT),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("устав[^А-Яа-я]"), DocumentType.CHARTER),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("протокол[^А-Яа-я]"), DocumentType.PROTOCOL),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("положение[^А-Яа-я]"), DocumentType.REGULATION),
             new AbstractMap.SimpleEntry<>(Pattern.compile("благотворител"), DocumentType.CHARITY_POLICY),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("приказ(\\s|$)"), DocumentType.ORDER),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("план работ"), DocumentType.WORK_PLAN),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("приказ[^А-Яа-я]"), DocumentType.ORDER),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("план работ[^А-Яа-я]"), DocumentType.WORK_PLAN),
             new AbstractMap.SimpleEntry<>(Pattern.compile("дополнительное\\s+соглашение"), DocumentType.SUPPLEMENTARY_AGREEMENT),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("приложение(\\s|$)"), DocumentType.ANNEX),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("приложение[^А-Яа-я]"), DocumentType.ANNEX),
             new AbstractMap.SimpleEntry<>(Pattern.compile("утвержден[а-я]*(\\s|$)"), DocumentType.CHARTER),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("контракт(\\s|$)"), DocumentType.CONTRACT),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("решение(\\s|$)"), DocumentType.PROTOCOL)
+            new AbstractMap.SimpleEntry<>(Pattern.compile("контракт[^А-Яа-я]"), DocumentType.CONTRACT),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("решение[^А-Яа-я]"), DocumentType.PROTOCOL)
     );
 
     private static List<Pattern> possibleSubDocuments = List.of(Pattern.compile("^\\s*приложение"),
@@ -159,7 +159,7 @@ public class DocumentParser {
                                     currentListNumber.incrementNumber();
                                 }
                                 if(numberFormat == 23){//bullet format
-                                    paragraphPrefix = "•";
+                                    paragraphPrefix = "• ";
                                 }
                                 else {
                                     paragraphPrefix = level.getNumberText();
