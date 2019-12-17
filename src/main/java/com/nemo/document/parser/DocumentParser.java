@@ -36,7 +36,7 @@ public class DocumentParser {
             "июл", "авг", "сен", "окт", "ноя", "дек"};
     private static Map<Pattern, DocumentType> keyToDocType = Map.ofEntries(
             new AbstractMap.SimpleEntry<>(Pattern.compile("договор[^А-Яа-я]"), DocumentType.CONTRACT),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("устав[^А-Яа-я]"), DocumentType.CHARTER),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("у *с *т *а *в[^А-Яа-я]"), DocumentType.CHARTER),
             new AbstractMap.SimpleEntry<>(Pattern.compile("протокол[^А-Яа-я]"), DocumentType.PROTOCOL),
             new AbstractMap.SimpleEntry<>(Pattern.compile("положение[^А-Яа-я]"), DocumentType.REGULATION),
             new AbstractMap.SimpleEntry<>(Pattern.compile("благотворител"), DocumentType.CHARITY_POLICY),
@@ -44,7 +44,6 @@ public class DocumentParser {
             new AbstractMap.SimpleEntry<>(Pattern.compile("план работ[^А-Яа-я]"), DocumentType.WORK_PLAN),
             new AbstractMap.SimpleEntry<>(Pattern.compile("дополнительное\\s+соглашение"), DocumentType.SUPPLEMENTARY_AGREEMENT),
             new AbstractMap.SimpleEntry<>(Pattern.compile("приложение[^А-Яа-я]"), DocumentType.ANNEX),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("утвержден[а-я]*(\\s|$)"), DocumentType.CHARTER),
             new AbstractMap.SimpleEntry<>(Pattern.compile("контракт[^А-Яа-я]"), DocumentType.CONTRACT),
             new AbstractMap.SimpleEntry<>(Pattern.compile("решение[^А-Яа-я]"), DocumentType.PROTOCOL)
     );
@@ -344,15 +343,15 @@ public class DocumentParser {
                 for (AbstractMap.Entry<Pattern, DocumentType> entry : keyToDocType.entrySet()) {
                     Matcher matcher = entry.getKey().matcher(paragraph.getParagraphHeader().getText().toLowerCase());
                     if (matcher.find()) {
-                        if (firstOccurrence > matcher.start()) {
+                        if ((firstOccurrence > matcher.start() && result != DocumentType.CHARTER) || entry.getValue() == DocumentType.CHARTER) {
                             result = entry.getValue();
                             firstOccurrence = matcher.start();
                         }
                     }
                 }
-            }
-            if(result != DocumentType.UNKNOWN || paragraph.getParagraphBody().getText().trim().length() != 0){
-                break;
+                if(result != DocumentType.UNKNOWN){
+                    break;
+                }
             }
         }
         document.setDocumentType(result);
