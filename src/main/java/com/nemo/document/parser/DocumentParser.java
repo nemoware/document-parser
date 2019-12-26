@@ -45,7 +45,8 @@ public class DocumentParser {
             new AbstractMap.SimpleEntry<>(Pattern.compile("дополнительное\\s+соглашение"), DocumentType.SUPPLEMENTARY_AGREEMENT),
             new AbstractMap.SimpleEntry<>(Pattern.compile("приложение[^А-Яа-я]"), DocumentType.ANNEX),
             new AbstractMap.SimpleEntry<>(Pattern.compile("контракт[^А-Яа-я]"), DocumentType.CONTRACT),
-            new AbstractMap.SimpleEntry<>(Pattern.compile("решение[^А-Яа-я]"), DocumentType.PROTOCOL)
+            new AbstractMap.SimpleEntry<>(Pattern.compile("решение[^А-Яа-я]"), DocumentType.PROTOCOL),
+            new AbstractMap.SimpleEntry<>(Pattern.compile("соглашение[^А-Яа-я]"), DocumentType.CONTRACT)
     );
 
     private static List<Pattern> possibleSubDocuments = List.of(Pattern.compile("^\\s*приложение"),
@@ -63,6 +64,7 @@ public class DocumentParser {
     final private static int firstParagraphBodyCheckLength = 200;
     final private static int emptyParagraphs4PageBreakSimulation = 1;
     final private static float minHeaderIndentationLeft = 0.25f;
+    final private static int maxDocTypeDetectionHeaders = 3;
     private static String version;
 
     static{
@@ -337,20 +339,18 @@ public class DocumentParser {
 
     private static void findDocumentType(DocumentStructure document){
         DocumentType result = DocumentType.UNKNOWN;
-        for(com.nemo.document.parser.Paragraph paragraph : document.getParagraphs()) {
+        int firstOccurrence = Integer.MAX_VALUE;
+        for(int i = 0; i < document.getParagraphs().size() && i < maxDocTypeDetectionHeaders; i++) {
+            com.nemo.document.parser.Paragraph paragraph = document.getParagraphs().get(i);
             if (paragraph.getParagraphHeader() != null) {
-                int firstOccurrence = paragraph.getParagraphHeader().getLength();
                 for (AbstractMap.Entry<Pattern, DocumentType> entry : keyToDocType.entrySet()) {
                     Matcher matcher = entry.getKey().matcher(paragraph.getParagraphHeader().getText().toLowerCase());
                     if (matcher.find()) {
-                        if ((firstOccurrence > matcher.start() && result != DocumentType.CHARTER) || entry.getValue() == DocumentType.CHARTER) {
+                        if ((firstOccurrence > matcher.start() + paragraph.getParagraphHeader().getOffset() && result != DocumentType.CHARTER) || entry.getValue() == DocumentType.CHARTER) {
                             result = entry.getValue();
-                            firstOccurrence = matcher.start();
+                            firstOccurrence = matcher.start() + paragraph.getParagraphHeader().getOffset();
                         }
                     }
-                }
-                if(result != DocumentType.UNKNOWN){
-                    break;
                 }
             }
         }
