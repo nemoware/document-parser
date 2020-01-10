@@ -59,6 +59,7 @@ public class DocumentParser {
     private static Pattern styleNamePattern = Pattern.compile("title|heading|заголовок");
     private static Pattern valuableSymbolPattern = Pattern.compile("[A-Za-zА-Яа-я]");
     private static Pattern endStringPattern = Pattern.compile("\r|\n");
+    private static Pattern notHeaderPattern = Pattern.compile("решение +принято");
     final private static int maxHeaderLength = 1000;
     final private static int maxBodyLength = 100000;
     final private static int firstParagraphBodyCheckLength = 200;
@@ -224,6 +225,7 @@ public class DocumentParser {
                     }
                 }
             }
+            postProcessDocument(result);
             logger.info("Document processed successfully. Time spent {}ms", System.currentTimeMillis() - startTime);
             return result;
         }
@@ -262,6 +264,26 @@ public class DocumentParser {
                 }
                 else{
                     previousParagraph = paragraph;
+                }
+            }
+        }
+    }
+
+    private static void postProcessDocument(MultiDocumentStructure multiDocumentStructure){
+        for(DocumentStructure documentStructure : multiDocumentStructure.getDocuments()){
+            if(documentStructure.getDocumentType() == DocumentType.PROTOCOL) {
+                com.nemo.document.parser.Paragraph previousParagraph = null;
+                for (Iterator<com.nemo.document.parser.Paragraph> paragraphIterator = documentStructure.getParagraphs().iterator(); paragraphIterator.hasNext(); ) {
+                    com.nemo.document.parser.Paragraph paragraph = paragraphIterator.next();
+                    Matcher matcher = notHeaderPattern.matcher(paragraph.getParagraphHeader().getText().toLowerCase());
+                    if (matcher.find() && previousParagraph != null) {
+                        previousParagraph.getParagraphBody().addText(paragraph.getParagraphHeader().getText());
+                        previousParagraph.getParagraphBody().addText(paragraph.getParagraphBody().getText());
+                        paragraphIterator.remove();
+                    }
+                    else {
+                        previousParagraph = paragraph;
+                    }
                 }
             }
         }
