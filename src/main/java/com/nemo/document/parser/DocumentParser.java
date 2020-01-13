@@ -144,13 +144,17 @@ public class DocumentParser {
                                 int numberFormat = level.getNumberFormat();
                                 ListNumber rootListNumber = listNumbers.get(paragraph.getList().getLsid());
                                 if(rootListNumber == null){
-                                    rootListNumber = new ListNumber(paragraph.getIlvl(), "" + numberFormat);
+                                    rootListNumber = new ListNumber(0, "" + listLevel[0].getNumberFormat());
+                                    rootListNumber.overrideNumber(listLevel[0].getStartAt());
                                     listNumbers.put(paragraph.getList().getLsid(), rootListNumber);
-                                }
+                                 }
                                 ListNumber currentListNumber = rootListNumber;
-                                for(int l = 0; l < paragraph.getIlvl(); l++){
+                                for(int l = 1; l <= paragraph.getIlvl(); l++){
                                     if(currentListNumber.getSubNumber() == null){
-                                        currentListNumber.setSubNumber(new ListNumber(l + 1, "" + numberFormat));
+                                        currentListNumber.setSubNumber(new ListNumber(l, "" + listLevel[l].getNumberFormat()));
+                                        if(paragraph.getIlvl() != l) {
+                                            currentListNumber.getSubNumber().overrideNumber(listLevel[l].getStartAt());
+                                        }
                                     }
                                     currentListNumber = currentListNumber.getSubNumber();
                                 }
@@ -161,18 +165,18 @@ public class DocumentParser {
                                     currentListNumber.incrementNumber();
                                 }
                                 if(numberFormat == 23){//bullet format
-                                    paragraphPrefix = "• ";
+                                    paragraphPrefix = "•";
                                 }
                                 else {
                                     paragraphPrefix = level.getNumberText();
                                     ListNumber listNumber = rootListNumber;
                                     for (int l = 0; l <= currentListNumber.getLevel(); l++) {
-                                        paragraphPrefix = paragraphPrefix.replace(Character.toString((char)l), Integer.toString(listNumber.getNumber())) + " ";
+                                        paragraphPrefix = paragraphPrefix.replace(Character.toString((char)l), Integer.toString(listNumber.getNumber()));
                                         listNumber = listNumber.getSubNumber();
                                     }
                                 }
                             }
-                            paragraphText = paragraphPrefix + paragraphText;
+                            paragraphText = paragraphPrefix + " " + paragraphText;
 //                        StyleDescription styleDescription = doc.getStyleSheet().getStyleDescription(paragraph.getStyleIndex());
                             if ((result.getDocuments().size() == 1 && documentResult.getParagraphs().size() == 0) ||
                                     isHeader(paragraph, tables, pageWidth)) {
