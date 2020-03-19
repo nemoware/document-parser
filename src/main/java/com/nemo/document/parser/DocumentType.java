@@ -11,4 +11,5 @@ public enum DocumentType {
     WORK_PLAN,
     SUPPLEMENTARY_AGREEMENT,
     ANNEX,
+    AGREEMENT,
 }
