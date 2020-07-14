@@ -10,11 +10,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
 
-/**
- * Hello world!
- *
- */
-public class App 
+public class App
 {
     private static Logger logger = LoggerFactory.getLogger(App.class);
 
