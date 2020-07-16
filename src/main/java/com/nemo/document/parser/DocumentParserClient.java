@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class DocumentParserClient {
-    final private static URI uri = URI.create("http://192.168.10.36:8889/document-parser");
+    final private static URI uri = URI.create("http://localhost:8889/document-parser");
     final private static HttpClient client = HttpClient.newHttpClient();
     final private static AtomicInteger fileCount = new AtomicInteger(0);
 
