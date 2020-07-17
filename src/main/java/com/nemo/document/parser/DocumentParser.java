@@ -380,6 +380,22 @@ public class DocumentParser {
                 }
             }
         }
+        if(result == DocumentType.UNKNOWN){
+            for(int i = 0; i < document.getParagraphs().size() && i < maxDocTypeDetectionHeaders; i++) {
+                com.nemo.document.parser.Paragraph paragraph = document.getParagraphs().get(i);
+                if (paragraph.getParagraphBody() != null) {
+                    for (AbstractMap.Entry<Pattern, DocumentType> entry : keyToDocType.entrySet()) {
+                        Matcher matcher = entry.getKey().matcher(paragraph.getParagraphBody().getText().toLowerCase());
+                        if (matcher.find()) {
+                            if ((firstOccurrence > matcher.start() + paragraph.getParagraphBody().getOffset() && result != DocumentType.CHARTER) || entry.getValue() == DocumentType.CHARTER) {
+                                result = entry.getValue();
+                                firstOccurrence = matcher.start() + paragraph.getParagraphBody().getOffset();
+                            }
+                        }
+                    }
+                }
+            }
+        }
         document.setDocumentType(result);
     }
 
