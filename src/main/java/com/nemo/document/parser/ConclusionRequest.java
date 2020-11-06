@@ -1,5 +1,8 @@
 package com.nemo.document.parser;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.Date;
 import java.util.Map;
 
@@ -9,7 +12,7 @@ public class ConclusionRequest {
     Date auditDate;
     RiskMatrixRow[] riskMatrix;
     String[] orgLevels;
-    String[] violations;
+    Violation[] violations;
 
     public String getBase64Logo() {
         return base64Logo;
@@ -51,11 +54,11 @@ public class ConclusionRequest {
         this.orgLevels = orgLevels;
     }
 
-    public String[] getViolations() {
+    public Violation[] getViolations() {
         return violations;
     }
 
-    public void setViolations(String[] violations) {
+    public void setViolations(Violation[] violations) {
         this.violations = violations;
     }
 }

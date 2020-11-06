@@ -14,4 +14,7 @@ public class DocumentResponse {
     public DocumentResponse(String base64Document) {
         this.base64Document = base64Document;
     }
+
+    public DocumentResponse() {
+    }
 }
