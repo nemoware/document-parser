@@ -15,9 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.SimpleDateFormat;
-import java.util.Base64;
-import java.util.Date;
-import java.util.HashMap;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ConclusionGeneratorClient {
@@ -32,6 +30,14 @@ public class ConclusionGeneratorClient {
         try {
             byte[] fileContent = FileUtils.readFileToByteArray(new File("C:\\work\\tmp\\logo.png"));
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+            List<Violation> violations = new ArrayList<>();
+            Violation violation = new Violation();
+            violation.foundingDocument = "Устав в редакции от 7 янв. 2018 г.";
+            violation.reference = "20) принятие решений о совершении сделок мены, дарения, иных сделок, предусматривающих безвозмездное отчуждение имущества Общества либо оплату (встречное предоставление) в неденежной форме, за исключением сделок с ПАО «Газпром нефть» и обществами, входящими в группу лиц с ним; 21) принятие решений о заключении Обществом акционерных соглашений, соглашений об осуществлении прав участников (корпоративных договоров), опционных соглашений, договоров простого товарищества и иных соглашений о совместной деятельности, за исключением сделок с ПАО «Газпром нефть» и обществами, входящими в группу лиц с ним;(СТАТЬЯ 10. СОВЕТ ДИРЕКТОРОВ ОБЩЕСТВА )";
+            violation.violationType = "Стоимость договора не равно значению в протоколе";
+            violation.violationReason = "Договор № КБ 0197531 от 25 авг. 2018 г. c Общество с ограниченной ответственностью Зеленые луга, цена сделки - 300 000,00 ₽\n" +
+                    "Протокол Совет директоров от 21 июл. 2018 г., сумма - 360 000,00 ₽";
+            violations.add(violation);
             var values = new HashMap<String, String>() {{
                 put("base64Logo", Base64.getEncoder().encodeToString(fileContent));
                 put("subsidiaryName", "Некое ДО");

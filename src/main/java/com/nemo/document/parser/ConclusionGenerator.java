@@ -8,24 +8,59 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.*;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.rmi.server.ExportException;
+import java.math.BigInteger;
 import java.text.SimpleDateFormat;
-import java.util.Base64;
+import java.util.*;
 
 public class ConclusionGenerator {
     private static Logger logger = LoggerFactory.getLogger(ConclusionGenerator.class);
     private static SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy");
+    private static Map<String, String> violation2RiskMatrixMapping = new HashMap<String, String>() {{
+        put("Протокол не найден", "Отсутствует одобрение Общего собрания участников Общества/Совета директоров на совершение cделки");
+    }};
+    private static BigInteger listId = BigInteger.ZERO;
 
     public static byte[] generate(ConclusionRequest conclusionRequest) throws IOException {
         XWPFDocument document = new XWPFDocument();
         try {
+            if(conclusionRequest.getViolations() == null){
+                conclusionRequest.setViolations(new Violation[0]);
+            }
+            if(conclusionRequest.getOrgLevels() == null){
+                conclusionRequest.setOrgLevels(new String[0]);
+            }
+            if(conclusionRequest.getRiskMatrix() == null){
+                conclusionRequest.setRiskMatrix(new RiskMatrixRow[0]);
+            }
+
+            Set<RiskMatrixRow> applicableRisks = new HashSet<>();
+            for(Violation violation : conclusionRequest.getViolations()){
+                for(Map.Entry<String, String> entry : violation2RiskMatrixMapping.entrySet()){
+                    if(violation.violationType.startsWith(entry.getKey())) {
+                        for(RiskMatrixRow riskMatrixRow : conclusionRequest.riskMatrix){
+                            if(riskMatrixRow.violation.equals(entry.getValue())){
+                                applicableRisks.add(riskMatrixRow);
+                            }
+                        }
+                    }
+                }
+            }
+
             createFrontPage(document, conclusionRequest);
             createTableOfContent(document);
             createIntro(document);
+            createShortSummary(document, applicableRisks);
+            XWPFRun run = document.createParagraph().createRun();
+            run.setFontSize(14);
+            run.setFontFamily("Arial");
+            run.setBold(true);
+            run.setText("Полный отчет");
+            createCorporateStructure(document);
+            createResults(document, conclusionRequest);
+            createRisks(document, applicableRisks);
         }
         catch (Exception ex){
             logger.error("Error: ", ex);
@@ -38,6 +73,96 @@ public class ConclusionGenerator {
         }
     }
 
+    private static void createRisks(XWPFDocument document, Set<RiskMatrixRow> applicableRisks){
+        addParagraph("Риски", document, true);
+        BigInteger numId = createList(document, "%1.");
+        XWPFParagraph paragraph;
+        for(RiskMatrixRow riskMatrixRow : applicableRisks){
+            paragraph = document.createParagraph();
+            paragraph.setNumID(numId);
+            addRun(riskMatrixRow.getRisk(), paragraph);
+        }
+    }
+
+    private static void createResults(XWPFDocument document, ConclusionRequest conclusionRequest){
+        addParagraph("Результаты проверки документов КН на предмет наличия/отсутствия корпоративных одобрений и их достоверности", document, true);
+        String replacedText = StaticText.resultStart;
+        if(conclusionRequest.getAuditStart() != null && conclusionRequest.getAuditEnd() != null) {
+            replacedText = replacedText.replace("<<audit_period>>", "с " + dateFormat.format(conclusionRequest.getAuditStart()) + " по " + dateFormat.format(conclusionRequest.getAuditEnd()));
+        }
+        generateWordContent(document, replacedText);
+        addParagraph("", document);
+        XWPFTable table = document.createTable(conclusionRequest.violations.length + 1, 4);
+        addRun("Учредительный документ", table.getRow(0).getCell(0).addParagraph(), true);
+        addRun("Подпункт, пункт, статья", table.getRow(0).getCell(1).addParagraph(), true);
+        addRun("Нарушение", table.getRow(0).getCell(2).addParagraph(), true);
+        addRun("Основание нарушения", table.getRow(0).getCell(3).addParagraph(), true);
+        for(Violation violation : conclusionRequest.getViolations()){
+            addRun(violation.getFoundingDocument(), table.getRow(0).getCell(0).addParagraph(), true);
+            addRun(violation.getReference(), table.getRow(0).getCell(1).addParagraph(), true);
+            addRun(violation.getViolationType(), table.getRow(0).getCell(2).addParagraph(), true);
+            addRun(violation.getViolationReason(), table.getRow(0).getCell(3).addParagraph(), true);
+        }
+        addParagraph("", document);
+
+        addParagraph(StaticText.resultEnd, document);
+        addParagraph("", document);
+    }
+
+    private static void createCorporateStructure(XWPFDocument document){
+        addParagraph("Текущая корпоративная структура и управление КН", document, true);
+        addParagraph("", document);
+    }
+
+    private static BigInteger createList(XWPFDocument document, String format){
+        CTAbstractNum cTAbstractNum = CTAbstractNum.Factory.newInstance();
+        cTAbstractNum.setAbstractNumId(listId);
+        listId = listId.add(BigInteger.ONE);
+        CTLvl cTLvl = cTAbstractNum.addNewLvl();
+        if(format.equals("•")) {
+            cTLvl.addNewNumFmt().setVal(STNumberFormat.BULLET);
+        }
+        if(format.startsWith("%")){
+            cTLvl.addNewNumFmt().setVal(STNumberFormat.DECIMAL);
+        }
+        cTLvl.addNewLvlText().setVal(format);
+        XWPFAbstractNum abstractNum = new XWPFAbstractNum(cTAbstractNum);
+        XWPFNumbering numbering = document.createNumbering();
+        BigInteger abstractNumID = numbering.addAbstractNum(abstractNum);
+        BigInteger numID = numbering.addNum(abstractNumID);
+        return numID;
+    }
+
+    private static void createShortSummary(XWPFDocument document, Set<RiskMatrixRow> applicableRisks){
+        addParagraph("Краткие выводы", document, true);
+        addParagraph(StaticText.shortSummaryText, document);
+
+        addParagraph("Сильные стороны", document, true);
+        XWPFParagraph paragraph = document.createParagraph();
+        paragraph.setNumID(createList(document, "•"));
+        addRun(StaticText.strongSides, paragraph);
+
+        addParagraph("Недостатки", document, true);
+        BigInteger numId = createList(document, "•");
+        for(RiskMatrixRow riskMatrixRow : applicableRisks){
+            paragraph = document.createParagraph();
+            paragraph.setNumID(numId);
+            addRun(riskMatrixRow.disadvantage, paragraph);
+        }
+
+        addParagraph("", document);
+
+        addParagraph("Рекомендации по усовершенствованию системы корпоративного управления КН, как инструмента повышения общеуправленческой эффективности:", document, true);
+        numId = createList(document, "%1)");
+        for(RiskMatrixRow riskMatrixRow : applicableRisks){
+            paragraph = document.createParagraph();
+            paragraph.setNumID(numId);
+            addRun(riskMatrixRow.recommendation, paragraph);
+        }
+
+        document.createParagraph().createRun().addBreak(BreakType.PAGE);
+    }
+
     private static void createIntro(XWPFDocument document){
         XWPFParagraph paragraph = document.createParagraph();
         addRun("Вводная часть", paragraph, true);
@@ -46,6 +171,24 @@ public class ConclusionGenerator {
     }
 
     private static void createTableOfContent(XWPFDocument document){
+        addParagraph("Оглавление", document, true);
+//        CTSdtBlock block = getDocument().getBody().addNewSdt();
+//        TOC toc = new TOC(block);
+//        for (XWPFParagraph par : this.paragraphs) {
+//            String parStyle = par.getStyle();
+//            if ((parStyle != null) && (parStyle.startsWith("Heading"))) try {
+//                int level = Integer.valueOf(parStyle.substring("Heading".length())).intValue();
+//                toc.addRow(level, par.getText(), 1, "112723803");
+//            } catch (NumberFormatException e) {
+//                e.printStackTrace();
+//            }
+//        }
+//        document.createTOC();
+//        XWPFParagraph paragraph = document.createParagraph();
+//        CTP ctP = paragraph.getCTP();
+//        CTSimpleField toc = ctP.addNewFldSimple();
+//        toc.setInstr("TOC \\h");
+//        toc.setDirty(STOnOff.TRUE);
         document.createParagraph().createRun().addBreak(BreakType.PAGE);
     }
 

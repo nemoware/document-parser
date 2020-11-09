@@ -13,6 +13,8 @@ public class ConclusionRequest {
     RiskMatrixRow[] riskMatrix;
     String[] orgLevels;
     Violation[] violations;
+    Date auditStart;
+    Date auditEnd;
 
     public String getBase64Logo() {
         return base64Logo;
@@ -60,5 +62,21 @@ public class ConclusionRequest {
 
     public void setViolations(Violation[] violations) {
         this.violations = violations;
+    }
+
+    public Date getAuditStart() {
+        return auditStart;
+    }
+
+    public void setAuditStart(Date auditStart) {
+        this.auditStart = auditStart;
+    }
+
+    public Date getAuditEnd() {
+        return auditEnd;
+    }
+
+    public void setAuditEnd(Date auditEnd) {
+        this.auditEnd = auditEnd;
     }
 }
