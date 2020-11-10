@@ -97,11 +97,12 @@ public class ConclusionGenerator {
         addRun("Подпункт, пункт, статья", table.getRow(0).getCell(1).addParagraph(), true);
         addRun("Нарушение", table.getRow(0).getCell(2).addParagraph(), true);
         addRun("Основание нарушения", table.getRow(0).getCell(3).addParagraph(), true);
-        for(Violation violation : conclusionRequest.getViolations()){
-            addRun(violation.getFoundingDocument(), table.getRow(0).getCell(0).addParagraph(), true);
-            addRun(violation.getReference(), table.getRow(0).getCell(1).addParagraph(), true);
-            addRun(violation.getViolationType(), table.getRow(0).getCell(2).addParagraph(), true);
-            addRun(violation.getViolationReason(), table.getRow(0).getCell(3).addParagraph(), true);
+        for(int i = 0; i < conclusionRequest.getViolations().length; i++){
+            Violation violation = conclusionRequest.getViolations()[i];
+            addRun(violation.getFoundingDocument(), table.getRow(i + 1).getCell(0).addParagraph(), true);
+            addRun(violation.getReference(), table.getRow(i + 1).getCell(1).addParagraph(), true);
+            addRun(violation.getViolationType(), table.getRow(i + 1).getCell(2).addParagraph(), true);
+            addRun(violation.getViolationReason(), table.getRow(i + 1).getCell(3).addParagraph(), true);
         }
         addParagraph("", document);
 
