@@ -2,6 +2,7 @@ package com.nemo.document.parser;
 
 import org.apache.poi.sl.usermodel.VerticalAlignment;
 import org.apache.poi.ss.usermodel.Color;
+import org.apache.poi.util.POILogger;
 import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.usermodel.*;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
@@ -99,10 +100,10 @@ public class ConclusionGenerator {
         addRun("Основание нарушения", table.getRow(0).getCell(3).addParagraph(), true);
         for(int i = 0; i < conclusionRequest.getViolations().length; i++){
             Violation violation = conclusionRequest.getViolations()[i];
-            addRun(violation.getFoundingDocument(), table.getRow(i + 1).getCell(0).addParagraph(), true);
-            addRun(violation.getReference(), table.getRow(i + 1).getCell(1).addParagraph(), true);
-            addRun(violation.getViolationType(), table.getRow(i + 1).getCell(2).addParagraph(), true);
-            addRun(violation.getViolationReason(), table.getRow(i + 1).getCell(3).addParagraph(), true);
+            addRun(violation.getFoundingDocument(), table.getRow(i + 1).getCell(0).addParagraph());
+            addRun(violation.getReference(), table.getRow(i + 1).getCell(1).addParagraph());
+            addRun(violation.getViolationType(), table.getRow(i + 1).getCell(2).addParagraph());
+            addRun(violation.getViolationReason(), table.getRow(i + 1).getCell(3).addParagraph());
         }
         addParagraph("", document);
 
@@ -125,12 +126,14 @@ public class ConclusionGenerator {
         }
         if(format.startsWith("%")){
             cTLvl.addNewNumFmt().setVal(STNumberFormat.DECIMAL);
+            cTLvl.addNewStart().setVal(BigInteger.valueOf(1));
         }
         cTLvl.addNewLvlText().setVal(format);
         XWPFAbstractNum abstractNum = new XWPFAbstractNum(cTAbstractNum);
         XWPFNumbering numbering = document.createNumbering();
         BigInteger abstractNumID = numbering.addAbstractNum(abstractNum);
         BigInteger numID = numbering.addNum(abstractNumID);
+        XWPFNum num = numbering.getNum(numID);
         return numID;
     }
 
@@ -172,25 +175,59 @@ public class ConclusionGenerator {
     }
 
     private static void createTableOfContent(XWPFDocument document){
-        addParagraph("Оглавление", document, true);
-//        CTSdtBlock block = getDocument().getBody().addNewSdt();
-//        TOC toc = new TOC(block);
-//        for (XWPFParagraph par : this.paragraphs) {
-//            String parStyle = par.getStyle();
-//            if ((parStyle != null) && (parStyle.startsWith("Heading"))) try {
-//                int level = Integer.valueOf(parStyle.substring("Heading".length())).intValue();
-//                toc.addRow(level, par.getText(), 1, "112723803");
-//            } catch (NumberFormatException e) {
-//                e.printStackTrace();
-//            }
-//        }
-//        document.createTOC();
-//        XWPFParagraph paragraph = document.createParagraph();
-//        CTP ctP = paragraph.getCTP();
-//        CTSimpleField toc = ctP.addNewFldSimple();
-//        toc.setInstr("TOC \\h");
-//        toc.setDirty(STOnOff.TRUE);
+        XWPFRun run = document.createParagraph().createRun();
+        run.setFontFamily("Arial");
+        run.setFontSize(12);
+        run.setBold(true);
+        run.setText("Оглавление");
+
+        document.createTOC();
+        addCustomHeadingStyle(document, "heading 1", 1);
+        XWPFParagraph paragraph = document.createParagraph();
+        CTP ctP = paragraph.getCTP();
+        CTSimpleField toc = ctP.addNewFldSimple();
+        toc.setInstr("TOC \\h");
+        toc.setDirty(STOnOff.TRUE);
+
+        CTSdtContentBlock block = document.getDocument().getBody().getSdtArray(0).getSdtContent();
+        block.removeP(0);
         document.createParagraph().createRun().addBreak(BreakType.PAGE);
+    }
+
+    private static void addCustomHeadingStyle(XWPFDocument docxDocument, String strStyleId, int headingLevel) {
+
+        CTStyle ctStyle = CTStyle.Factory.newInstance();
+        ctStyle.setStyleId(strStyleId);
+
+        CTString styleName = CTString.Factory.newInstance();
+        styleName.setVal(strStyleId);
+        ctStyle.setName(styleName);
+
+        CTDecimalNumber indentNumber = CTDecimalNumber.Factory.newInstance();
+        indentNumber.setVal(BigInteger.valueOf(headingLevel));
+
+        // lower number > style is more prominent in the formats bar
+        ctStyle.setUiPriority(indentNumber);
+
+        CTOnOff onoffnull = CTOnOff.Factory.newInstance();
+        ctStyle.setUnhideWhenUsed(onoffnull);
+
+        // style shows up in the formats bar
+        ctStyle.setQFormat(onoffnull);
+
+        // style defines a heading of the given level
+        CTPPr ppr = CTPPr.Factory.newInstance();
+        ppr.setOutlineLvl(indentNumber);
+        ctStyle.setPPr(ppr);
+
+        XWPFStyle style = new XWPFStyle(ctStyle);
+
+        // is a null op if already defined
+        XWPFStyles styles = docxDocument.createStyles();
+
+        style.setType(STStyleType.PARAGRAPH);
+        styles.addStyle(style);
+
     }
 
     private static void createFrontPage(XWPFDocument document, ConclusionRequest conclusionRequest) throws Exception{
@@ -277,6 +314,7 @@ public class ConclusionGenerator {
     private static void addParagraph(String text, XWPFDocument document, boolean bold){
         XWPFParagraph paragraph = document.createParagraph();
         addRun(text, paragraph, bold);
+        if(bold) paragraph.setStyle("heading 1");
     }
 
     private static void addParagraph(String text, XWPFDocument document){
