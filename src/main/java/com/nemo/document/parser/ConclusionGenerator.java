@@ -19,9 +19,6 @@ import java.util.*;
 public class ConclusionGenerator {
     private static Logger logger = LoggerFactory.getLogger(ConclusionGenerator.class);
     private static SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy");
-    private static Map<String, String> violation2RiskMatrixMapping = new HashMap<String, String>() {{
-        put("Протокол не найден", "Отсутствует одобрение Общего собрания участников Общества/Совета директоров на совершение cделки");
-    }};
     private static BigInteger listId = BigInteger.ZERO;
 
     public static byte[] generate(ConclusionRequest conclusionRequest) throws IOException {
@@ -37,23 +34,10 @@ public class ConclusionGenerator {
                 conclusionRequest.setRiskMatrix(new RiskMatrixRow[0]);
             }
 
-            Set<RiskMatrixRow> applicableRisks = new HashSet<>();
-            for(Violation violation : conclusionRequest.getViolations()){
-                for(Map.Entry<String, String> entry : violation2RiskMatrixMapping.entrySet()){
-                    if(violation.violationType.startsWith(entry.getKey())) {
-                        for(RiskMatrixRow riskMatrixRow : conclusionRequest.riskMatrix){
-                            if(riskMatrixRow.violation.equals(entry.getValue())){
-                                applicableRisks.add(riskMatrixRow);
-                            }
-                        }
-                    }
-                }
-            }
-
             createFrontPage(document, conclusionRequest);
             createTableOfContent(document);
-            createIntro(document);
-            createShortSummary(document, applicableRisks);
+            createIntro(document, conclusionRequest);
+            createShortSummary(document, conclusionRequest);
             XWPFRun run = document.createParagraph().createRun();
             run.setFontSize(14);
             run.setFontFamily("Arial");
@@ -61,7 +45,7 @@ public class ConclusionGenerator {
             run.setText("Полный отчет");
             createCorporateStructure(document);
             createResults(document, conclusionRequest);
-            createRisks(document, applicableRisks);
+            createRisks(document, conclusionRequest);
         }
         catch (Exception ex){
             logger.error("Error: ", ex);
@@ -74,11 +58,11 @@ public class ConclusionGenerator {
         }
     }
 
-    private static void createRisks(XWPFDocument document, Set<RiskMatrixRow> applicableRisks){
+    private static void createRisks(XWPFDocument document, ConclusionRequest conclusionRequest){
         addParagraph("Риски", document, true);
         BigInteger numId = createList(document, "%1.");
         XWPFParagraph paragraph;
-        for(RiskMatrixRow riskMatrixRow : applicableRisks){
+        for(RiskMatrixRow riskMatrixRow : conclusionRequest.getRiskMatrix()){
             paragraph = document.createParagraph();
             paragraph.setNumID(numId);
             addRun(riskMatrixRow.getRisk(), paragraph);
@@ -137,7 +121,7 @@ public class ConclusionGenerator {
         return numID;
     }
 
-    private static void createShortSummary(XWPFDocument document, Set<RiskMatrixRow> applicableRisks){
+    private static void createShortSummary(XWPFDocument document, ConclusionRequest conclusionRequest){
         addParagraph("Краткие выводы", document, true);
         addParagraph(StaticText.shortSummaryText, document);
 
@@ -148,7 +132,7 @@ public class ConclusionGenerator {
 
         addParagraph("Недостатки", document, true);
         BigInteger numId = createList(document, "•");
-        for(RiskMatrixRow riskMatrixRow : applicableRisks){
+        for(RiskMatrixRow riskMatrixRow : conclusionRequest.getRiskMatrix()){
             paragraph = document.createParagraph();
             paragraph.setNumID(numId);
             addRun(riskMatrixRow.disadvantage, paragraph);
@@ -158,7 +142,7 @@ public class ConclusionGenerator {
 
         addParagraph("Рекомендации по усовершенствованию системы корпоративного управления КН, как инструмента повышения общеуправленческой эффективности:", document, true);
         numId = createList(document, "%1)");
-        for(RiskMatrixRow riskMatrixRow : applicableRisks){
+        for(RiskMatrixRow riskMatrixRow : conclusionRequest.getRiskMatrix()){
             paragraph = document.createParagraph();
             paragraph.setNumID(numId);
             addRun(riskMatrixRow.recommendation, paragraph);
@@ -167,10 +151,10 @@ public class ConclusionGenerator {
         document.createParagraph().createRun().addBreak(BreakType.PAGE);
     }
 
-    private static void createIntro(XWPFDocument document){
+    private static void createIntro(XWPFDocument document, ConclusionRequest conclusionRequest){
         XWPFParagraph paragraph = document.createParagraph();
         addRun("Вводная часть", paragraph, true);
-        generateWordContent(document, StaticText.introText);
+        generateWordContent(document, StaticText.introText.replace("<<subsidiary_name>>", conclusionRequest.getSubsidiaryName()));
         document.createParagraph().createRun().addBreak(BreakType.PAGE);
     }
 
