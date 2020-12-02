@@ -7,21 +7,31 @@ import java.util.Date;
 import java.util.Map;
 
 public class ConclusionRequest {
-    String base64Logo;
+    String base64Template;
     String subsidiaryName;
     Date auditDate;
-    RiskMatrixRow[] riskMatrix;
-    String[] orgLevels;
+//    RiskMatrixRow[] riskMatrix;
+//    String[] orgLevels;
     Violation[] violations;
     Date auditStart;
     Date auditEnd;
+    String intro = "";
+    String shortSummary = "";
+    String corporateStructure1 = "";
+    String corporateStructure2 = "";
+    String results1 = "";
+    String results2 = "";
+    String strengths = "";
+    String disadvantages = "";
+    String risks = "";
+    String recommendations = "";
 
-    public String getBase64Logo() {
-        return base64Logo;
+    public String getBase64Template() {
+        return base64Template;
     }
 
-    public void setBase64Logo(String base64Logo) {
-        this.base64Logo = base64Logo;
+    public void setBase64Template(String base64Template) {
+        this.base64Template = base64Template;
     }
 
     public String getSubsidiaryName() {
@@ -38,22 +48,6 @@ public class ConclusionRequest {
 
     public void setAuditDate(Date auditDate) {
         this.auditDate = auditDate;
-    }
-
-    public RiskMatrixRow[] getRiskMatrix() {
-        return riskMatrix;
-    }
-
-    public void setRiskMatrix(RiskMatrixRow[] riskMatrix) {
-        this.riskMatrix = riskMatrix;
-    }
-
-    public String[] getOrgLevels() {
-        return orgLevels;
-    }
-
-    public void setOrgLevels(String[] orgLevels) {
-        this.orgLevels = orgLevels;
     }
 
     public Violation[] getViolations() {
@@ -78,5 +72,85 @@ public class ConclusionRequest {
 
     public void setAuditEnd(Date auditEnd) {
         this.auditEnd = auditEnd;
+    }
+
+    public String getIntro() {
+        return intro;
+    }
+
+    public void setIntro(String intro) {
+        this.intro = intro;
+    }
+
+    public String getShortSummary() {
+        return shortSummary;
+    }
+
+    public void setShortSummary(String shortSummary) {
+        this.shortSummary = shortSummary;
+    }
+
+    public String getCorporateStructure1() {
+        return corporateStructure1;
+    }
+
+    public void setCorporateStructure1(String corporateStructure1) {
+        this.corporateStructure1 = corporateStructure1;
+    }
+
+    public String getCorporateStructure2() {
+        return corporateStructure2;
+    }
+
+    public void setCorporateStructure2(String corporateStructure2) {
+        this.corporateStructure2 = corporateStructure2;
+    }
+
+    public String getResults1() {
+        return results1;
+    }
+
+    public void setResults1(String results1) {
+        this.results1 = results1;
+    }
+
+    public String getResults2() {
+        return results2;
+    }
+
+    public void setResults2(String results2) {
+        this.results2 = results2;
+    }
+
+    public String getStrengths() {
+        return strengths;
+    }
+
+    public void setStrengths(String strengths) {
+        this.strengths = strengths;
+    }
+
+    public String getDisadvantages() {
+        return disadvantages;
+    }
+
+    public void setDisadvantages(String disadvantages) {
+        this.disadvantages = disadvantages;
+    }
+
+    public String getRisks() {
+        return risks;
+    }
+
+    public void setRisks(String risks) {
+        this.risks = risks;
+    }
+
+    public String getRecommendations() {
+        return recommendations;
+    }
+
+    public void setRecommendations(String recommendations) {
+        this.recommendations = recommendations;
     }
 }

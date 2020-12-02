@@ -28,7 +28,7 @@ public class ConclusionGeneratorClient {
 
     private static void callDocParser(String filePath) {
         try {
-            byte[] fileContent = FileUtils.readFileToByteArray(new File("C:\\work\\tmp\\logo.png"));
+            byte[] fileContent = FileUtils.readFileToByteArray(new File("C:\\work\\gpn_docs\\Шаблон.docx"));
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
             List<Violation> violations = new ArrayList<>();
             Violation violation = new Violation();
@@ -39,7 +39,7 @@ public class ConclusionGeneratorClient {
                     "Протокол Совет директоров от 21 июл. 2018 г., сумма - 360 000,00 ₽";
             violations.add(violation);
             var values = new HashMap<String, String>() {{
-                put("base64Logo", Base64.getEncoder().encodeToString(fileContent));
+                put("base64Template", Base64.getEncoder().encodeToString(fileContent));
                 put("subsidiaryName", "Некое ДО");
                 put("auditDate", dateFormat.format(new Date()));
                 put("riskMatrix", null);
