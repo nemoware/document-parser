@@ -48,7 +48,7 @@ public class ConclusionGenerator {
             }
 
             for(Replace replace: replaceList){
-                delayedReplace(replace);
+                delayedReplace(replace, null);
             }
 
             for(TableReplace replace : tableReplaceList){
@@ -247,7 +247,7 @@ public class ConclusionGenerator {
         return "${" + placeholderName + "}";
     }
 
-    private static void delayedReplace(Replace replace){
+    private static void delayedReplace(Replace replace, XWPFTableCell cell){
         String[] textParagraphs = replace.text.split("\\r?\\n");
         for(int i = 1; i < replace.paragraph.getRuns().size(); i++){
             replace.paragraph.getRuns().get(i).setText("", 0);
@@ -258,10 +258,16 @@ public class ConclusionGenerator {
         replace.paragraph.getRuns().get(0).setText(textParagraphs[0], 0);
 
         for(int i = 1; i < textParagraphs.length; i++){
-            XmlCursor cursor = replace.paragraph.getCTP().newCursor();
-            XWPFParagraph newParagraph = replace.paragraph.getDocument().insertNewParagraph(cursor);
+            XWPFParagraph newParagraph;
+            if(cell != null){
+                newParagraph = cell.addParagraph();
+            }
+            else {
+                XmlCursor cursor = replace.paragraph.getCTP().newCursor();
+                newParagraph = replace.paragraph.getDocument().insertNewParagraph(cursor);
+            }
             cloneParagraph(newParagraph, replace.paragraph);
-            for(int j = 1; i < replace.paragraph.getRuns().size(); i++){
+            for(int j = 1; j < replace.paragraph.getRuns().size(); j++){
                 replace.paragraph.getRuns().get(j).setText("", 0);
             }
             replace.paragraph.getRuns().get(0).setText(textParagraphs[i], 0);
@@ -283,7 +289,7 @@ public class ConclusionGenerator {
                     Replace paragraphReplace = new Replace();
                     paragraphReplace.paragraph = replace.table.getRow(i).getCell(j).getParagraphArray(0);
                     paragraphReplace.text = replace.values[i - 1][j];
-                    delayedReplace(paragraphReplace);
+                    delayedReplace(paragraphReplace, replace.table.getRow(i).getCell(j));
 //                    replace.table.getRow(i).getCell(j).setText(replace.values[i - 1][j]);
                 }
             }
