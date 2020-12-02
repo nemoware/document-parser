@@ -1,5 +1,6 @@
 package com.nemo.document.parser;
 
+import org.apache.commons.math3.optim.InitialGuess;
 import org.apache.poi.xwpf.usermodel.*;
 import org.apache.xmlbeans.XmlCursor;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
@@ -20,27 +21,38 @@ public class ConclusionGenerator {
     private static SimpleDateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy");
     private static BigInteger listId = BigInteger.ZERO;
     private static Pattern placeholderPattern = Pattern.compile("\\$\\{(.*?)}");
-    private static List<Replace> replaceList = new ArrayList<>();
 
     public static byte[] generate(ConclusionRequest conclusionRequest) throws IOException {
         byte[] templateBytes = Base64.getDecoder().decode(conclusionRequest.getBase64Template());
         XWPFDocument document = null;
+
+        List<Replace> replaceList = new ArrayList<>();
+        List<TableReplace> tableReplaceList = new ArrayList<>();
+
         try(ByteArrayInputStream bais = new ByteArrayInputStream(templateBytes)) {
             document = new XWPFDocument(bais);
             if(conclusionRequest.getViolations() == null){
                 conclusionRequest.setViolations(new Violation[0]);
             }
+            if(conclusionRequest.getSubdivisions() == null){
+                conclusionRequest.setSubdivisions(new Subdivision[0]);
+            }
 
 
             Iterator<IBodyElement> bodyElementIterator = document.getBodyElementsIterator();
             List<String> styleChain = new ArrayList<>();
+            int elementIndex = 0;
             while (bodyElementIterator.hasNext()) {
                 IBodyElement element = bodyElementIterator.next();
-                processBodyElement(element, conclusionRequest, styleChain);
+                processBodyElement(element, conclusionRequest, styleChain, replaceList, tableReplaceList);
             }
 
             for(Replace replace: replaceList){
                 delayedReplace(replace);
+            }
+
+            for(TableReplace replace : tableReplaceList){
+                delayedTableReplace(replace);
             }
 
 //            createFrontPage(document, conclusionRequest);
@@ -69,7 +81,7 @@ public class ConclusionGenerator {
         }
     }
 
-    private static void processBodyElement(IBodyElement element, ConclusionRequest conclusionRequest, List<String> styleChain){
+    private static void processBodyElement(IBodyElement element, ConclusionRequest conclusionRequest, List<String> styleChain, List<Replace> replaceList, List<TableReplace> tableReplaceList){
         if(element.getElementType() == BodyElementType.CONTENTCONTROL){
             return;
         }
@@ -78,12 +90,83 @@ public class ConclusionGenerator {
             if(table.getStyleID() != null) {
                 styleChain.add(table.getStyleID());
             }
+            String[][] values = null;
+            int rowIdx = 0;
             for(XWPFTableRow row : table.getRows()){
+                int cellIdx = 0;
                 for(XWPFTableCell cell : row.getTableCells()){
                     for(IBodyElement bodyElement : cell.getBodyElements()){
-                        processBodyElement(bodyElement, conclusionRequest, styleChain);
+                        if(bodyElement.getElementType() == BodyElementType.PARAGRAPH) {
+                            XWPFParagraph paragraph = (XWPFParagraph) bodyElement;
+                            String oldText = paragraph.getText();
+                            Matcher matcher = placeholderPattern.matcher(oldText);
+                            String newText = oldText;
+                            if (paragraph.getRuns().size() > 0) {
+                                while (matcher.find()) {
+                                    String placeholder = matcher.group(1);
+                                    if("number".equals(placeholder) || "subdivision.name".equals(placeholder) || "subdivision.address".equals(placeholder)){
+                                        if(values == null){
+                                            values = new String[conclusionRequest.getSubdivisions().length][table.getRow(0).getTableCells().size()];
+                                        }
+                                        switch(placeholder){
+                                            case "number":
+                                                for(int i = 0; i < conclusionRequest.getSubdivisions().length; i++) {
+                                                    values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("number"), Integer.toString(i + 1));
+                                                }
+                                                break;
+                                            case "subdivision.name":
+                                                for(int i = 0; i < conclusionRequest.getSubdivisions().length; i++) {
+                                                    values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("subdivision.name"), conclusionRequest.getSubdivisions()[i].getName());
+                                                }
+                                                break;
+                                            case "subdivision.address":
+                                                for(int i = 0; i < conclusionRequest.getSubdivisions().length; i++) {
+                                                    values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("subdivision.address"), conclusionRequest.getSubdivisions()[i].getAddress());
+                                                }
+                                                break;
+                                        }
+                                    }
+                                    else if ("violation.foundingDocument".equals(placeholder) || "violation.reference".equals(placeholder) || "violation.type".equals(placeholder) || "violation.reason".equals(placeholder)){
+                                        if(values == null){
+                                            values = new String[conclusionRequest.getViolations().length][table.getRow(0).getTableCells().size()];
+                                        }
+                                        switch(placeholder){
+                                            case "violation.foundingDocument":
+                                                for(int i = 0; i < conclusionRequest.getViolations().length; i++) {
+                                                    values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("violation.foundingDocument"), conclusionRequest.getViolations()[i].getFoundingDocument());
+                                                }
+                                                break;
+                                            case "violation.reference":
+                                                for(int i = 0; i < conclusionRequest.getViolations().length; i++) {
+                                                    values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("violation.reference"), conclusionRequest.getViolations()[i].getReference());
+                                                }
+                                                break;
+                                            case "violation.type":
+                                                for(int i = 0; i < conclusionRequest.getViolations().length; i++) {
+                                                    values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("violation.type"), conclusionRequest.getViolations()[i].getViolationType());
+                                                }
+                                                break;
+                                            case "violation.reason":
+                                                for(int i = 0; i < conclusionRequest.getViolations().length; i++) {
+                                                    values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("violation.reason"), conclusionRequest.getViolations()[i].getViolationReason());
+                                                }
+                                                break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        processBodyElement(bodyElement, conclusionRequest, styleChain, replaceList, tableReplaceList);
                     }
+                    cellIdx++;
                 }
+                rowIdx++;
+            }
+            if(values != null) {
+                TableReplace tableReplace = new TableReplace();
+                tableReplace.table = table;
+                tableReplace.values = values;
+                tableReplaceList.add(tableReplace);
             }
             if(table.getStyleID() != null) {
                 styleChain.remove(styleChain.size() - 1);
@@ -134,12 +217,12 @@ public class ConclusionGenerator {
                         case "risks":
                             newText = conclusionRequest.getRisks();
                             break;
-                        default:
-                            logger.warn("Unknown placeholder {}", placeholder);
+//                        default:
+//                            logger.warn("Unknown placeholder {}", placeholder);
                     }
                 }
                 if(!oldText.equals(newText)) {
-                    replaceParagraphText(paragraph, newText);
+                    replaceParagraphText(paragraph, newText, replaceList);
                 }
             }
         }
@@ -169,6 +252,9 @@ public class ConclusionGenerator {
         for(int i = 1; i < replace.paragraph.getRuns().size(); i++){
             replace.paragraph.getRuns().get(i).setText("", 0);
         }
+        if(replace.paragraph.getRuns().size() == 0){
+            replace.paragraph.createRun();
+        }
         replace.paragraph.getRuns().get(0).setText(textParagraphs[0], 0);
 
         for(int i = 1; i < textParagraphs.length; i++){
@@ -182,7 +268,34 @@ public class ConclusionGenerator {
         }
     }
 
-    private static void replaceParagraphText(XWPFParagraph paragraph, String text){
+    private static void delayedTableReplace(TableReplace replace){
+        if(replace.values.length == 0){
+            int pos = replace.table.getBody().getXWPFDocument().getPosOfTable(replace.table);
+            replace.table.getBody().getXWPFDocument().removeBodyElement(pos);
+        }
+        else{
+            for(int i = 1; i < replace.values.length + 1; i++){
+                if(i > 1){
+                    XWPFTableRow lastRow = replace.table.getRow(replace.table.getNumberOfRows() - 1);
+                    replace.table.addRow(lastRow);
+                }
+                for(int j = 0; j < replace.values[0].length; j++){
+                    Replace paragraphReplace = new Replace();
+                    paragraphReplace.paragraph = replace.table.getRow(i).getCell(j).getParagraphArray(0);
+                    paragraphReplace.text = replace.values[i - 1][j];
+                    delayedReplace(paragraphReplace);
+//                    replace.table.getRow(i).getCell(j).setText(replace.values[i - 1][j]);
+                }
+            }
+            if(replace.table.getNumberOfRows() > 2) {
+                XWPFTableRow lastRow = replace.table.getRow(replace.table.getNumberOfRows() - 1);
+                replace.table.addRow(lastRow);
+                replace.table.removeRow(1);
+            }
+        }
+    }
+
+    private static void replaceParagraphText(XWPFParagraph paragraph, String text, List<Replace> replaceList){
         Replace replace = new Replace();
         replace.paragraph = paragraph;
         replace.text = text;
@@ -351,80 +464,6 @@ public class ConclusionGenerator {
 
     }
 
-//    private static void createFrontPage(XWPFDocument document, ConclusionRequest conclusionRequest) throws Exception{
-//        byte[] logo = Base64.getDecoder().decode(conclusionRequest.getBase64Logo());
-//        XWPFTable table = document.createTable(1, 2);
-//        table.removeBorders();
-//        XWPFTableRow tableRow = table.getRow(0);
-//        XWPFTableCell cell = tableRow.getCell(0);
-//
-//        XWPFParagraph paragraph = cell.addParagraph();
-//        XWPFRun run = paragraph.createRun();
-//        XWPFPicture picture = run.addPicture(new ByteArrayInputStream(logo), Document.PICTURE_TYPE_PNG, "", Units.toEMU(200), Units.toEMU(145));
-//
-//        paragraph = tableRow.getCell(1).addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.RIGHT);
-//        addRun("УТВЕРЖДАЮ:", paragraph, true);
-//        paragraph = tableRow.getCell(1).addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.RIGHT);
-//        addRun("______________________", paragraph);
-//        paragraph = tableRow.getCell(1).addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.RIGHT);
-//        addRun("", paragraph);
-//        paragraph = tableRow.getCell(1).addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.RIGHT);
-//        addRun("Заместитель генерального директора", paragraph);
-//        paragraph = tableRow.getCell(1).addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.RIGHT);
-//        addRun("по правовым и корпоративным вопросам", paragraph);
-//        paragraph = tableRow.getCell(1).addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.RIGHT);
-//        addRun("", paragraph);
-//        paragraph = tableRow.getCell(1).addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.RIGHT);
-//        addRun("Е.А. Илюхина", paragraph);
-//        addParagraph("", document);
-//        addParagraph("", document);
-//
-//        table = document.createTable(6, 1);
-//        table.removeBorders();
-//        cell = table.getRow(0).getCell(0);
-//        paragraph = cell.addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.CENTER);
-//        addRun("Блок правовых и корпоративных вопросов ПАО «Газпром нефть»", paragraph);
-//        paragraph = cell.addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.CENTER);
-//        addRun("ДЕПАРТАМЕНТ КОРПОРАТИВНОГО РЕГУЛИРОВАНИЯ", paragraph);
-//        cell = table.getRow(1).getCell(0);
-//        paragraph = cell.addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.CENTER);
-//        run = paragraph.createRun();
-//        run.setFontFamily("Cambria");
-//        run.setFontSize(40);
-//        run.setText("«" + conclusionRequest.subsidiaryName + "»");
-//        CTTc ctTc = cell.getCTTc();
-//        CTTcPr tcPr = ctTc.addNewTcPr();
-//        CTTcBorders border = tcPr.addNewTcBorders();
-//        CTBorder ctBorder = border.addNewBottom();
-//        ctBorder.setVal(STBorder.SINGLE);
-//        ctBorder.setColor("2196F3");
-//        cell = table.getRow(2).getCell(0);
-//        paragraph = cell.addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.CENTER);
-//        addRun("Отчет по результатам аудита практики корпоративного управления", paragraph);
-//        cell = table.getRow(5).getCell(0);
-//        paragraph = cell.addParagraph();
-//        paragraph.setAlignment(ParagraphAlignment.CENTER);
-//        run = paragraph.createRun();
-//        run.setFontFamily("Arial");
-//        run.setFontSize(12);
-//        run.setBold(true);
-//        run.setItalic(true);
-//        run.setText(dateFormat.format(conclusionRequest.auditDate));
-//        run = document.createParagraph().createRun();
-//        run.addBreak(BreakType.PAGE);
-//    }
-
     private static void generateWordContent(XWPFDocument document, String text){
         String[] paragraphTexts = text.split("\n");
         for (String paragraphText : paragraphTexts){
@@ -457,5 +496,10 @@ public class ConclusionGenerator {
     private static class Replace{
         XWPFParagraph paragraph;
         String text;
+    }
+
+    private static class TableReplace{
+        XWPFTable table;
+        String[][] values;
     }
 }

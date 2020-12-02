@@ -25,6 +25,7 @@ public class ConclusionRequest {
     String disadvantages = "";
     String risks = "";
     String recommendations = "";
+    Subdivision[] subdivisions;
 
     public String getBase64Template() {
         return base64Template;
@@ -152,5 +153,13 @@ public class ConclusionRequest {
 
     public void setRecommendations(String recommendations) {
         this.recommendations = recommendations;
+    }
+
+    public Subdivision[] getSubdivisions() {
+        return subdivisions;
+    }
+
+    public void setSubdivisions(Subdivision[] subdivisions) {
+        this.subdivisions = subdivisions;
     }
 }
