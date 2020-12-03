@@ -133,11 +133,17 @@ public class ConclusionGenerator {
                                         switch(placeholder){
                                             case "violation.foundingDocument":
                                                 for(int i = 0; i < conclusionRequest.getViolations().length; i++) {
+                                                    if(conclusionRequest.getViolations()[i].getFoundingDocument() == null){
+                                                        conclusionRequest.getViolations()[i].setFoundingDocument("");
+                                                    }
                                                     values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("violation.foundingDocument"), conclusionRequest.getViolations()[i].getFoundingDocument());
                                                 }
                                                 break;
                                             case "violation.reference":
                                                 for(int i = 0; i < conclusionRequest.getViolations().length; i++) {
+                                                    if(conclusionRequest.getViolations()[i].getReference() == null){
+                                                        conclusionRequest.getViolations()[i].setReference("");
+                                                    }
                                                     values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("violation.reference"), conclusionRequest.getViolations()[i].getReference());
                                                 }
                                                 break;
@@ -148,6 +154,9 @@ public class ConclusionGenerator {
                                                 break;
                                             case "violation.reason":
                                                 for(int i = 0; i < conclusionRequest.getViolations().length; i++) {
+                                                    if(conclusionRequest.getViolations()[i].getViolationReason() == null){
+                                                        conclusionRequest.getViolations()[i].setViolationReason("");
+                                                    }
                                                     values[i][cellIdx] = paragraph.getText().replace(getFullPlaceholder("violation.reason"), conclusionRequest.getViolations()[i].getViolationReason());
                                                 }
                                                 break;
@@ -248,29 +257,42 @@ public class ConclusionGenerator {
     }
 
     private static void delayedReplace(Replace replace, XWPFTableCell cell){
-        String[] textParagraphs = replace.text.split("\\r?\\n");
-        for(int i = 1; i < replace.paragraph.getRuns().size(); i++){
-            replace.paragraph.getRuns().get(i).setText("", 0);
-        }
-        if(replace.paragraph.getRuns().size() == 0){
-            replace.paragraph.createRun();
-        }
-        replace.paragraph.getRuns().get(0).setText(textParagraphs[0], 0);
-
-        for(int i = 1; i < textParagraphs.length; i++){
-            XWPFParagraph newParagraph;
+        if("".equals(replace.text.trim())){
             if(cell != null){
-                newParagraph = cell.addParagraph();
+                for(XWPFParagraph paragraph : cell.getParagraphs()) {
+                    for(XWPFRun run : paragraph.getRuns()){
+                        run.setText("", 0);
+                    }
+                }
             }
             else {
-                XmlCursor cursor = replace.paragraph.getCTP().newCursor();
-                newParagraph = replace.paragraph.getDocument().insertNewParagraph(cursor);
+                replace.paragraph.getDocument().removeBodyElement(replace.paragraph.getDocument().getPosOfParagraph(replace.paragraph));
             }
-            cloneParagraph(newParagraph, replace.paragraph);
-            for(int j = 1; j < replace.paragraph.getRuns().size(); j++){
-                replace.paragraph.getRuns().get(j).setText("", 0);
+        }
+        else {
+            String[] textParagraphs = replace.text.split("\\r?\\n");
+            for (int i = 1; i < replace.paragraph.getRuns().size(); i++) {
+                replace.paragraph.getRuns().get(i).setText("", 0);
             }
-            replace.paragraph.getRuns().get(0).setText(textParagraphs[i], 0);
+            if (replace.paragraph.getRuns().size() == 0) {
+                replace.paragraph.createRun();
+            }
+            replace.paragraph.getRuns().get(0).setText(textParagraphs[0], 0);
+
+            for (int i = 1; i < textParagraphs.length; i++) {
+                XWPFParagraph newParagraph;
+                if (cell != null) {
+                    newParagraph = cell.addParagraph();
+                } else {
+                    XmlCursor cursor = replace.paragraph.getCTP().newCursor();
+                    newParagraph = replace.paragraph.getDocument().insertNewParagraph(cursor);
+                }
+                cloneParagraph(newParagraph, replace.paragraph);
+                for (int j = 1; j < replace.paragraph.getRuns().size(); j++) {
+                    replace.paragraph.getRuns().get(j).setText("", 0);
+                }
+                newParagraph.getRuns().get(0).setText(textParagraphs[i], 0);
+            }
         }
     }
 
@@ -289,6 +311,9 @@ public class ConclusionGenerator {
                     Replace paragraphReplace = new Replace();
                     paragraphReplace.paragraph = replace.table.getRow(i).getCell(j).getParagraphArray(0);
                     paragraphReplace.text = replace.values[i - 1][j];
+                    for(int p = replace.table.getRow(i).getCell(j).getParagraphs().size() - 1; p > 0; p--) {
+                        replace.table.getRow(i).getCell(j).removeParagraph(p);
+                    }
                     delayedReplace(paragraphReplace, replace.table.getRow(i).getCell(j));
 //                    replace.table.getRow(i).getCell(j).setText(replace.values[i - 1][j]);
                 }
