@@ -21,6 +21,8 @@ public class ConclusionRequest {
     String corporateStructure2 = "";
     String results1 = "";
     String results2 = "";
+    String results3 = "";
+    String results4 = "";
     String strengths = "";
     String disadvantages = "";
     String risks = "";
@@ -161,5 +163,21 @@ public class ConclusionRequest {
 
     public void setSubdivisions(Subdivision[] subdivisions) {
         this.subdivisions = subdivisions;
+    }
+
+    public String getResults3() {
+        return results3;
+    }
+
+    public void setResults3(String results3) {
+        this.results3 = results3;
+    }
+
+    public String getResults4() {
+        return results4;
+    }
+
+    public void setResults4(String results4) {
+        this.results4 = results4;
     }
 }

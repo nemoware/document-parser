@@ -1,6 +1,5 @@
 package com.nemo.document.parser;
 
-import org.apache.commons.math3.optim.InitialGuess;
 import org.apache.poi.xwpf.usermodel.*;
 import org.apache.xmlbeans.XmlCursor;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
@@ -41,7 +40,6 @@ public class ConclusionGenerator {
 
             Iterator<IBodyElement> bodyElementIterator = document.getBodyElementsIterator();
             List<String> styleChain = new ArrayList<>();
-            int elementIndex = 0;
             while (bodyElementIterator.hasNext()) {
                 IBodyElement element = bodyElementIterator.next();
                 processBodyElement(element, conclusionRequest, styleChain, replaceList, tableReplaceList);
@@ -55,18 +53,6 @@ public class ConclusionGenerator {
                 delayedTableReplace(replace);
             }
 
-//            createFrontPage(document, conclusionRequest);
-//            createTableOfContent(document);
-//            createIntro(document, conclusionRequest);
-//            createShortSummary(document, conclusionRequest);
-//            XWPFRun run = document.createParagraph().createRun();
-//            run.setFontSize(14);
-//            run.setFontFamily("Arial");
-//            run.setBold(true);
-//            run.setText("Полный отчет");
-//            createCorporateStructure(document);
-//            createResults(document, conclusionRequest);
-//            createRisks(document, conclusionRequest);
         }
         catch (Exception ex){
             logger.error("Error: ", ex);
@@ -214,6 +200,12 @@ public class ConclusionGenerator {
                         case "results2":
                             newText = conclusionRequest.getResults2();
                             break;
+                        case "results3":
+                            newText = conclusionRequest.getResults3();
+                            break;
+                        case "results4":
+                            newText = conclusionRequest.getResults4();
+                            break;
                         case "strengths":
                             newText = conclusionRequest.getStrengths();
                             break;
@@ -333,50 +325,6 @@ public class ConclusionGenerator {
         replaceList.add(replace);
     }
 
-    private static void createRisks(XWPFDocument document, ConclusionRequest conclusionRequest){
-        addParagraph("Риски", document, true);
-        BigInteger numId = createList(document, "%1.");
-        XWPFParagraph paragraph;
-//        for(RiskMatrixRow riskMatrixRow : conclusionRequest.getRiskMatrix()){
-//            if(riskMatrixRow.getRisk() != null && !"".equals(riskMatrixRow.getRisk().trim())) {
-//                paragraph = document.createParagraph();
-//                paragraph.setNumID(numId);
-//                addRun(riskMatrixRow.getRisk(), paragraph);
-//            }
-//        }
-    }
-
-    private static void createResults(XWPFDocument document, ConclusionRequest conclusionRequest){
-        addParagraph("Результаты проверки документов КН на предмет наличия/отсутствия корпоративных одобрений и их достоверности", document, true);
-        String replacedText = StaticText.resultStart;
-        if(conclusionRequest.getAuditStart() != null && conclusionRequest.getAuditEnd() != null) {
-            replacedText = replacedText.replace("<<audit_period>>", "с " + dateFormat.format(conclusionRequest.getAuditStart()) + " по " + dateFormat.format(conclusionRequest.getAuditEnd()));
-        }
-        generateWordContent(document, replacedText);
-        addParagraph("", document);
-        XWPFTable table = document.createTable(conclusionRequest.violations.length + 1, 4);
-        addRun("Учредительный документ", table.getRow(0).getCell(0).addParagraph(), true);
-        addRun("Подпункт, пункт, статья", table.getRow(0).getCell(1).addParagraph(), true);
-        addRun("Нарушение", table.getRow(0).getCell(2).addParagraph(), true);
-        addRun("Основание нарушения", table.getRow(0).getCell(3).addParagraph(), true);
-        for(int i = 0; i < conclusionRequest.getViolations().length; i++){
-            Violation violation = conclusionRequest.getViolations()[i];
-            addRun(violation.getFoundingDocument(), table.getRow(i + 1).getCell(0).addParagraph());
-            addRun(violation.getReference(), table.getRow(i + 1).getCell(1).addParagraph());
-            addRun(violation.getViolationType(), table.getRow(i + 1).getCell(2).addParagraph());
-            addRun(violation.getViolationReason(), table.getRow(i + 1).getCell(3).addParagraph());
-        }
-        addParagraph("", document);
-
-        addParagraph(StaticText.resultEnd, document);
-        addParagraph("", document);
-    }
-
-    private static void createCorporateStructure(XWPFDocument document){
-        addParagraph("Текущая корпоративная структура и управление КН", document, true);
-        addParagraph("", document);
-    }
-
     private static BigInteger createList(XWPFDocument document, String format){
         CTAbstractNum cTAbstractNum = CTAbstractNum.Factory.newInstance();
         cTAbstractNum.setAbstractNumId(listId);
@@ -396,110 +344,6 @@ public class ConclusionGenerator {
         BigInteger numID = numbering.addNum(abstractNumID);
         XWPFNum num = numbering.getNum(numID);
         return numID;
-    }
-
-    private static void createShortSummary(XWPFDocument document, ConclusionRequest conclusionRequest){
-        addParagraph("Краткие выводы", document, true);
-        addParagraph(StaticText.shortSummaryText, document);
-
-        addParagraph("Сильные стороны", document, true);
-        XWPFParagraph paragraph = document.createParagraph();
-        paragraph.setNumID(createList(document, "•"));
-        addRun(StaticText.strongSides, paragraph);
-
-        addParagraph("Недостатки", document, true);
-        BigInteger numId = createList(document, "•");
-//        for(RiskMatrixRow riskMatrixRow : conclusionRequest.getRiskMatrix()){
-//            if(riskMatrixRow.getDisadvantage() != null && !"".equals(riskMatrixRow.getDisadvantage().trim())) {
-//                paragraph = document.createParagraph();
-//                paragraph.setNumID(numId);
-//                addRun(riskMatrixRow.getDisadvantage(), paragraph);
-//            }
-//        }
-
-        addParagraph("", document);
-
-        addParagraph("Рекомендации по усовершенствованию системы корпоративного управления КН, как инструмента повышения общеуправленческой эффективности:", document, true);
-        numId = createList(document, "%1)");
-//        for(RiskMatrixRow riskMatrixRow : conclusionRequest.getRiskMatrix()){
-//            if(riskMatrixRow.getRecommendation() != null && !"".equals(riskMatrixRow.getRecommendation().trim())) {
-//                paragraph = document.createParagraph();
-//                paragraph.setNumID(numId);
-//                addRun(riskMatrixRow.getRecommendation(), paragraph);
-//            }
-//        }
-
-        document.createParagraph().createRun().addBreak(BreakType.PAGE);
-    }
-
-    private static void createIntro(XWPFDocument document, ConclusionRequest conclusionRequest){
-        XWPFParagraph paragraph = document.createParagraph();
-        addRun("Вводная часть", paragraph, true);
-        generateWordContent(document, StaticText.introText.replace("<<subsidiary_name>>", conclusionRequest.getSubsidiaryName()));
-        document.createParagraph().createRun().addBreak(BreakType.PAGE);
-    }
-
-    private static void createTableOfContent(XWPFDocument document){
-//        XWPFRun run = document.createParagraph().createRun();
-//        run.setFontFamily("Arial");
-//        run.setFontSize(12);
-//        run.setBold(true);
-//        run.setText("Оглавление");
-
-        document.createTOC();
-        addCustomHeadingStyle(document, "heading 1", 1);
-        XWPFParagraph paragraph = document.createParagraph();
-        CTP ctP = paragraph.getCTP();
-        CTSimpleField toc = ctP.addNewFldSimple();
-        toc.setInstr("TOC \\h");
-        toc.setDirty(STOnOff.TRUE);
-
-        CTSdtContentBlock block = document.getDocument().getBody().getSdtArray(0).getSdtContent();
-        block.removeP(0);
-//        document.createParagraph().createRun().addBreak(BreakType.PAGE);
-    }
-
-    private static void addCustomHeadingStyle(XWPFDocument docxDocument, String strStyleId, int headingLevel) {
-
-        CTStyle ctStyle = CTStyle.Factory.newInstance();
-        ctStyle.setStyleId(strStyleId);
-
-        CTString styleName = CTString.Factory.newInstance();
-        styleName.setVal(strStyleId);
-        ctStyle.setName(styleName);
-
-        CTDecimalNumber indentNumber = CTDecimalNumber.Factory.newInstance();
-        indentNumber.setVal(BigInteger.valueOf(headingLevel));
-
-        // lower number > style is more prominent in the formats bar
-        ctStyle.setUiPriority(indentNumber);
-
-        CTOnOff onoffnull = CTOnOff.Factory.newInstance();
-        ctStyle.setUnhideWhenUsed(onoffnull);
-
-        // style shows up in the formats bar
-        ctStyle.setQFormat(onoffnull);
-
-        // style defines a heading of the given level
-        CTPPr ppr = CTPPr.Factory.newInstance();
-        ppr.setOutlineLvl(indentNumber);
-        ctStyle.setPPr(ppr);
-
-        XWPFStyle style = new XWPFStyle(ctStyle);
-
-        // is a null op if already defined
-        XWPFStyles styles = docxDocument.createStyles();
-
-        style.setType(STStyleType.PARAGRAPH);
-        styles.addStyle(style);
-
-    }
-
-    private static void generateWordContent(XWPFDocument document, String text){
-        String[] paragraphTexts = text.split("\n");
-        for (String paragraphText : paragraphTexts){
-            addParagraph(paragraphText, document);
-        }
     }
 
     private static void addParagraph(String text, XWPFDocument document, boolean bold){
