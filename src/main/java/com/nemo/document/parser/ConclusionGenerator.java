@@ -219,7 +219,7 @@ public class ConclusionGenerator {
                             newText = conclusionRequest.getRisks();
                             break;
                         case "legalEntityType":
-                            newText = conclusionRequest.getLegalEntityType();
+                            newText = newText.replace(getFullPlaceholder("legalEntityType"), conclusionRequest.getLegalEntityType());
                             break;
 //                        default:
 //                            logger.warn("Unknown placeholder {}", placeholder);
