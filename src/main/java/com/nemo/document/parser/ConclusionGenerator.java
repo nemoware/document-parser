@@ -218,6 +218,9 @@ public class ConclusionGenerator {
                         case "risks":
                             newText = conclusionRequest.getRisks();
                             break;
+                        case "legalEntityType":
+                            newText = conclusionRequest.getLegalEntityType();
+                            break;
 //                        default:
 //                            logger.warn("Unknown placeholder {}", placeholder);
                     }
@@ -262,6 +265,7 @@ public class ConclusionGenerator {
             }
         }
         else {
+            XWPFParagraph lastParagraph = replace.paragraph;
             String[] textParagraphs = replace.text.split("\\r?\\n");
             for (int i = 1; i < replace.paragraph.getRuns().size(); i++) {
                 replace.paragraph.getRuns().get(i).setText("", 0);
@@ -276,8 +280,10 @@ public class ConclusionGenerator {
                 if (cell != null) {
                     newParagraph = cell.addParagraph();
                 } else {
-                    XmlCursor cursor = replace.paragraph.getCTP().newCursor();
+                    XmlCursor cursor = lastParagraph.getCTP().newCursor();
+                    cursor.toNextSibling();
                     newParagraph = replace.paragraph.getDocument().insertNewParagraph(cursor);
+                    lastParagraph = newParagraph;
                 }
                 cloneParagraph(newParagraph, replace.paragraph);
                 for (int j = 1; j < replace.paragraph.getRuns().size(); j++) {

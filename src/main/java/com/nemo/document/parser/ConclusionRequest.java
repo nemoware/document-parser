@@ -28,6 +28,7 @@ public class ConclusionRequest {
     String risks = "";
     String recommendations = "";
     Subdivision[] subdivisions;
+    String legalEntityType = "";
 
     public String getBase64Template() {
         return base64Template;
@@ -179,5 +180,13 @@ public class ConclusionRequest {
 
     public void setResults4(String results4) {
         this.results4 = results4;
+    }
+
+    public String getLegalEntityType() {
+        return legalEntityType;
+    }
+
+    public void setLegalEntityType(String legalEntityType) {
+        this.legalEntityType = legalEntityType;
     }
 }
