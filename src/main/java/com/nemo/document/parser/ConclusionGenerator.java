@@ -1,5 +1,6 @@
 package com.nemo.document.parser;
 
+import com.nemo.document.parser.web.ConclusionRequest;
 import org.apache.poi.xwpf.usermodel.*;
 import org.apache.xmlbeans.XmlCursor;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;

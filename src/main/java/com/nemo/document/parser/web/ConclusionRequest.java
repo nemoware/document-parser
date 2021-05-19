@@ -1,7 +1,9 @@
-package com.nemo.document.parser;
+package com.nemo.document.parser.web;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.nemo.document.parser.Subdivision;
+import com.nemo.document.parser.Violation;
 
 import java.util.Date;
 import java.util.Map;

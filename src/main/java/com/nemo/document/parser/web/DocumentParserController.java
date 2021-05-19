@@ -45,4 +45,32 @@ public class DocumentParserController {
         byte[] document = ConclusionGenerator.generate(conclusionRequest);
         return new DocumentResponse(Base64.getEncoder().encodeToString(document));
     }
+
+    @GetMapping("/document-parser/stakeholder-list")
+    @ResponseBody
+    public StakeholderResponse getStakeholdersByPath(@RequestParam(name="filePath") String filePath) throws IOException {
+        String fullPath = new File(fileRootPath, filePath).getAbsolutePath();
+        return ExcelParser.parseStakeholderDocument(fullPath);
+    }
+
+    @PostMapping("/document-parser/stakeholder-list")
+    @ResponseBody
+    public StakeholderResponse getStakeholders(@RequestBody DocumentParserRequest request) throws IOException{
+        byte[] decodedBytes = Base64.getDecoder().decode(request.getBase64Content());
+        return ExcelParser.parseStakeholderDocument(new ByteArrayInputStream(decodedBytes), DocumentFileType.valueOf(request.getDocumentFileType()));
+    }
+
+    @GetMapping("/document-parser/beneficiary-chain")
+    @ResponseBody
+    public BeneficiaryChain getBeneficiariesByPath(@RequestParam(name="filePath") String filePath) throws IOException {
+        String fullPath = new File(fileRootPath, filePath).getAbsolutePath();
+        return ExcelParser.parseBeneficiaries(fullPath);
+    }
+
+    @PostMapping("/document-parser/beneficiary-chain")
+    @ResponseBody
+    public BeneficiaryChain getBeneficiaryChain(@RequestBody DocumentParserRequest request) throws IOException{
+        byte[] decodedBytes = Base64.getDecoder().decode(request.getBase64Content());
+        return ExcelParser.parseBeneficiaries(new ByteArrayInputStream(decodedBytes), DocumentFileType.valueOf(request.getDocumentFileType()));
+    }
 }
