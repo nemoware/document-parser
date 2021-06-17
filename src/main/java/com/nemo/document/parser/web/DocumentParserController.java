@@ -50,14 +50,21 @@ public class DocumentParserController {
     @ResponseBody
     public StakeholderResponse getStakeholdersByPath(@RequestParam(name="filePath") String filePath) throws IOException {
         String fullPath = new File(fileRootPath, filePath).getAbsolutePath();
-        return ExcelParser.parseStakeholderDocument(fullPath);
+        return PdfParser.parseStakeholderDocument(fullPath);
+//        return ExcelParser.parseStakeholderDocument(fullPath);
     }
 
     @PostMapping("/document-parser/stakeholder-list")
     @ResponseBody
     public StakeholderResponse getStakeholders(@RequestBody DocumentParserRequest request) throws IOException{
         byte[] decodedBytes = Base64.getDecoder().decode(request.getBase64Content());
-        return ExcelParser.parseStakeholderDocument(new ByteArrayInputStream(decodedBytes), DocumentFileType.valueOf(request.getDocumentFileType()));
+        DocumentFileType documentFileType = DocumentFileType.valueOf(request.getDocumentFileType());
+        if (documentFileType == DocumentFileType.PDF){
+            return PdfParser.parseStakeholderDocument(new ByteArrayInputStream(decodedBytes), documentFileType);
+        }
+        else {
+            return ExcelParser.parseStakeholderDocument(new ByteArrayInputStream(decodedBytes), documentFileType);
+        }
     }
 
     @GetMapping("/document-parser/beneficiary-chain")

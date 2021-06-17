@@ -1,11 +1,11 @@
 package com.nemo.document.parser;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDate;
+import java.util.Date;
 
 public class Reason {
     private String text;
-    private List<String> persons = new ArrayList<>();
+    private LocalDate date;
 
     public String getText() {
         return text;
@@ -15,11 +15,11 @@ public class Reason {
         this.text = text;
     }
 
-    public List<String> getPersons() {
-        return persons;
+    public LocalDate getDate() {
+        return date;
     }
 
-    public void setPersons(List<String> persons) {
-        this.persons = persons;
+    public void setDate(LocalDate date) {
+        this.date = date;
     }
 }

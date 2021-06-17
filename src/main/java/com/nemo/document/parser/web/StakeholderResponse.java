@@ -1,12 +1,12 @@
 package com.nemo.document.parser.web;
 
-import com.nemo.document.parser.StakeholderList;
+import com.nemo.document.parser.Stakeholder;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class StakeholderResponse {
-    private List<StakeholderList> sheets = new ArrayList<>();
+    private List<Stakeholder> stakeholders = new ArrayList<>();
     private String version;
 
     public String getVersion() {
@@ -17,11 +17,11 @@ public class StakeholderResponse {
         this.version = version;
     }
 
-    public List<StakeholderList> getSheets() {
-        return sheets;
+    public List<Stakeholder> getStakeholders() {
+        return stakeholders;
     }
 
-    public void setSheets(List<StakeholderList> sheets) {
-        this.sheets = sheets;
+    public void setStakeholders(List<Stakeholder> stakeholders) {
+        this.stakeholders = stakeholders;
     }
 }

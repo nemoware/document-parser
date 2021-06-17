@@ -5,4 +5,5 @@ public enum DocumentFileType {
     DOCX,
     XLS,
     XLSX,
+    PDF,
 }

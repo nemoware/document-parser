@@ -1,5 +1,6 @@
 package com.nemo.document.parser;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,7 +8,7 @@ public class Stakeholder {
     private String name;
     private String shortName;
     private List<Reason> reasons = new ArrayList<>();
-    private int year;
+    private BigDecimal share = new BigDecimal(0);
 
     public String getName() {
         return name;
@@ -33,11 +34,11 @@ public class Stakeholder {
         this.reasons = reasons;
     }
 
-    public int getYear() {
-        return year;
+    public BigDecimal getShare() {
+        return share;
     }
 
-    public void setYear(int year) {
-        this.year = year;
+    public void setShare(BigDecimal share) {
+        this.share = share;
     }
 }

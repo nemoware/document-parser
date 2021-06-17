@@ -42,12 +42,12 @@ public class ExcelParser {
 
     public static StakeholderResponse parseStakeholderDocument(InputStream inputStream, DocumentFileType documentFileType) throws IOException {
         try (inputStream) {
-            switch (documentFileType) {
-                case XLS:
-                    return parseStakeholderWorkbook(new HSSFWorkbook(inputStream));
-                case XLSX:
-                    return parseStakeholderWorkbook(new XSSFWorkbook(inputStream));
-            }
+//            switch (documentFileType) {
+//                case XLS:
+//                    return parseStakeholderWorkbook(new HSSFWorkbook(inputStream));
+//                case XLSX:
+//                    return parseStakeholderWorkbook(new XSSFWorkbook(inputStream));
+//            }
         }
         return null;
     }
@@ -69,76 +69,76 @@ public class ExcelParser {
         return null;
     }
 
-    private static StakeholderResponse parseStakeholderWorkbook(Workbook workbook){
-        StakeholderResponse result = new StakeholderResponse();
-        result.setVersion(DocumentParser.getVersion());
-        Iterator<Sheet> sheetIterator = workbook.sheetIterator();
-        while(sheetIterator.hasNext()) {
-            Sheet sheet = sheetIterator.next();
-            LocalDate sheetDate = parseDateFromSheetName(sheet.getSheetName());
-            StakeholderList stakeholderList = new StakeholderList();
-            result.getSheets().add(stakeholderList);
-            stakeholderList.setDate(sheetDate);
-            Iterator<Row> rowIterator = sheet.rowIterator();
-            Integer nameColumnIndex = null;
-            Integer reasonColumnIndex = null;
-            Integer yearColumnIndex = null;
-            while (rowIterator.hasNext()){
-                Row row = rowIterator.next();
-                Stakeholder stakeholder = new Stakeholder();
-                boolean emptyStakeholder = true;
-                Iterator<Cell> cellIterator = row.cellIterator();
-                while (cellIterator.hasNext()){
-                    Cell cell = cellIterator.next();
-//                    logger.info(cell.getRowIndex() + " " + cell.getColumnIndex());
-                    if (cell.getCellType() == CellType.STRING) {
-                        String cellValue = cell.getStringCellValue().trim();
-                        Matcher matcher = nameColumnTitlePattern.matcher(cellValue.toLowerCase());
-                        if (nameColumnIndex == null && matcher.find()) {
-                            nameColumnIndex = cell.getColumnIndex();
-                            continue;
-                        }
-                        matcher = reasonColumnTitlePattern.matcher(cellValue.toLowerCase());
-                        if (reasonColumnIndex == null && matcher.find()) {
-                            reasonColumnIndex = cell.getColumnIndex();
-                            continue;
-                        }
-                        matcher = yearColumnTitlePattern.matcher(cellValue.toLowerCase());
-                        if (yearColumnIndex == null && matcher.find()) {
-                            yearColumnIndex = cell.getColumnIndex();
-                            continue;
-                        }
-                        if (nameColumnIndex != null && cell.getColumnIndex() == nameColumnIndex) {
-                            emptyStakeholder = false;
-                            matcher = namePattern.matcher(cellValue);
-                            if (matcher.find()){
-                                stakeholder.setName(matcher.group("name").trim());
-                                stakeholder.setShortName(matcher.group("shortName").trim());
-                            }
-                            else {
-                                stakeholder.setName(cellValue);
-                            }
-                        }
-                        if (reasonColumnIndex != null && cell.getColumnIndex() == reasonColumnIndex) {
-                            emptyStakeholder = false;
-                            stakeholder.setReasons(parseReasons(cellValue));
-                        }
-                        if (yearColumnIndex != null && yearColumnIndex == cell.getColumnIndex()){
-                            emptyStakeholder = false;
-                            matcher = yearPattern.matcher(cellValue);
-                            if (matcher.find()){
-                                stakeholder.setYear(Integer.parseInt(matcher.group("year")));
-                            }
-                        }
-                    }
-                }
-                if (!emptyStakeholder){
-                    stakeholderList.getStakeholders().add(stakeholder);
-                }
-            }
-        }
-        return result;
-    }
+//    private static StakeholderResponse parseStakeholderWorkbook(Workbook workbook){
+//        StakeholderResponse result = new StakeholderResponse();
+//        result.setVersion(DocumentParser.getVersion());
+//        Iterator<Sheet> sheetIterator = workbook.sheetIterator();
+//        while(sheetIterator.hasNext()) {
+//            Sheet sheet = sheetIterator.next();
+//            LocalDate sheetDate = parseDateFromSheetName(sheet.getSheetName());
+//            StakeholderList stakeholderList = new StakeholderList();
+//            result.getSheets().add(stakeholderList);
+//            stakeholderList.setDate(sheetDate);
+//            Iterator<Row> rowIterator = sheet.rowIterator();
+//            Integer nameColumnIndex = null;
+//            Integer reasonColumnIndex = null;
+//            Integer yearColumnIndex = null;
+//            while (rowIterator.hasNext()){
+//                Row row = rowIterator.next();
+//                Stakeholder stakeholder = new Stakeholder();
+//                boolean emptyStakeholder = true;
+//                Iterator<Cell> cellIterator = row.cellIterator();
+//                while (cellIterator.hasNext()){
+//                    Cell cell = cellIterator.next();
+////                    logger.info(cell.getRowIndex() + " " + cell.getColumnIndex());
+//                    if (cell.getCellType() == CellType.STRING) {
+//                        String cellValue = cell.getStringCellValue().trim();
+//                        Matcher matcher = nameColumnTitlePattern.matcher(cellValue.toLowerCase());
+//                        if (nameColumnIndex == null && matcher.find()) {
+//                            nameColumnIndex = cell.getColumnIndex();
+//                            continue;
+//                        }
+//                        matcher = reasonColumnTitlePattern.matcher(cellValue.toLowerCase());
+//                        if (reasonColumnIndex == null && matcher.find()) {
+//                            reasonColumnIndex = cell.getColumnIndex();
+//                            continue;
+//                        }
+//                        matcher = yearColumnTitlePattern.matcher(cellValue.toLowerCase());
+//                        if (yearColumnIndex == null && matcher.find()) {
+//                            yearColumnIndex = cell.getColumnIndex();
+//                            continue;
+//                        }
+//                        if (nameColumnIndex != null && cell.getColumnIndex() == nameColumnIndex) {
+//                            emptyStakeholder = false;
+//                            matcher = namePattern.matcher(cellValue);
+//                            if (matcher.find()){
+//                                stakeholder.setName(matcher.group("name").trim());
+//                                stakeholder.setShortName(matcher.group("shortName").trim());
+//                            }
+//                            else {
+//                                stakeholder.setName(cellValue);
+//                            }
+//                        }
+//                        if (reasonColumnIndex != null && cell.getColumnIndex() == reasonColumnIndex) {
+//                            emptyStakeholder = false;
+//                            stakeholder.setReasons(parseReasons(cellValue));
+//                        }
+//                        if (yearColumnIndex != null && yearColumnIndex == cell.getColumnIndex()){
+//                            emptyStakeholder = false;
+//                            matcher = yearPattern.matcher(cellValue);
+//                            if (matcher.find()){
+//                                stakeholder.setReasonDate(LocalDate.of(Integer.parseInt(matcher.group("year")), 1, 1));
+//                            }
+//                        }
+//                    }
+//                }
+//                if (!emptyStakeholder){
+//                    stakeholderList.getStakeholders().add(stakeholder);
+//                }
+//            }
+//        }
+//        return result;
+//    }
 
     private static BeneficiaryChain parseBeneficiaryWorkbook(Workbook workbook){
         BeneficiaryChain result = new BeneficiaryChain();
@@ -226,32 +226,32 @@ public class ExcelParser {
         return false;
     }
 
-    private static List<Reason> parseReasons(String text){
-        Matcher matcher = reasonPattern.matcher(text);
-        List<Reason> result = new ArrayList<>();
-        boolean list = false;
-        while (matcher.find()){
-            list = true;
-            Reason reason = new Reason();
-            result.add(reason);
-            String reasonText = matcher.group("reason");
-            if (reasonText != null) {
-                reason.setText(reasonText.trim());
-                Matcher shortNameMatcher = shortNamePattern.matcher(reason.getText());
-                while (shortNameMatcher.find()){
-                    reason.getPersons().add(shortNameMatcher.group("person"));
-                }
-            }
-        }
-        if (!list){
-            Reason reason = new Reason();
-            result.add(reason);
-            reason.setText(text);
-            matcher = shortNamePattern.matcher(text);
-            while (matcher.find()){
-                reason.getPersons().add(matcher.group("person"));
-            }
-        }
-        return result;
-    }
+//    private static List<Reason> parseReasons(String text){
+//        Matcher matcher = reasonPattern.matcher(text);
+//        List<Reason> result = new ArrayList<>();
+//        boolean list = false;
+//        while (matcher.find()){
+//            list = true;
+//            Reason reason = new Reason();
+//            result.add(reason);
+//            String reasonText = matcher.group("reason");
+//            if (reasonText != null) {
+//                reason.setText(reasonText.trim());
+//                Matcher shortNameMatcher = shortNamePattern.matcher(reason.getText());
+//                while (shortNameMatcher.find()){
+//                    reason.getPersons().add(shortNameMatcher.group("person"));
+//                }
+//            }
+//        }
+//        if (!list){
+//            Reason reason = new Reason();
+//            result.add(reason);
+//            reason.setText(text);
+//            matcher = shortNamePattern.matcher(text);
+//            while (matcher.find()){
+//                reason.getPersons().add(matcher.group("person"));
+//            }
+//        }
+//        return result;
+//    }
 }
