@@ -218,6 +218,8 @@ public class DocumentParser {
                         canBeHeader = elementResult.isPageBreak ? CanBeHeader.MUST : CanBeHeader.CAN;
                     }
                     break;
+                default:
+                    throw new IllegalArgumentException("Format: " + documentFileType + " not supported.");
             }
             checkDocumentStructure(result);
             for (DocumentStructure documentStructure : result.getDocuments()) {

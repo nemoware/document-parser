@@ -63,7 +63,7 @@ public class DocumentParserController {
             return PdfParser.parseStakeholderDocument(new ByteArrayInputStream(decodedBytes), documentFileType);
         }
         else {
-            return ExcelParser.parseStakeholderDocument(new ByteArrayInputStream(decodedBytes), documentFileType);
+            throw new IllegalArgumentException("Format: " + documentFileType + " not supported.");
         }
     }
 

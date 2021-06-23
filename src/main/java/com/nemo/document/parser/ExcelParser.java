@@ -64,9 +64,10 @@ public class ExcelParser {
                     return parseBeneficiaryWorkbook(new HSSFWorkbook(inputStream));
                 case XLSX:
                     return parseBeneficiaryWorkbook(new XSSFWorkbook(inputStream));
+                default:
+                    throw new IllegalArgumentException("Format: " + documentFileType + " not supported.");
             }
         }
-        return null;
     }
 
 //    private static StakeholderResponse parseStakeholderWorkbook(Workbook workbook){
