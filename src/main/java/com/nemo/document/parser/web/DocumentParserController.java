@@ -80,4 +80,10 @@ public class DocumentParserController {
         byte[] decodedBytes = Base64.getDecoder().decode(request.getBase64Content());
         return ExcelParser.parseBeneficiaries(new ByteArrayInputStream(decodedBytes), DocumentFileType.valueOf(request.getDocumentFileType()));
     }
+
+    @GetMapping("/status")
+    @ResponseBody
+    public StatusResponse getStatus(){
+        return new StatusResponse();
+    }
 }

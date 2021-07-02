@@ -136,11 +136,11 @@ public class PdfParser {
 
     private static void processCell(int nameColumnIdx, int reasonColumnIdx, int reasonDateColumnIdx, int shareColumnIdx, Stakeholder stakeholder, int column, String[] row) {
         String cellText = row[column];
-        if(column == 0){
-            logger.info(row[column]);
-        }
+//        if(column == 0){
+//            logger.info(row[column]);
+//        }
         if(column == nameColumnIdx) {
-            stakeholder.setName(cellText);
+            stakeholder.setName(cellText.trim());
         }
         if(column == reasonColumnIdx){
             List<String> split = splitReason(cellText);
